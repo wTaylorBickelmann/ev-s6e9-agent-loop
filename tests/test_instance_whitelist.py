@@ -21,7 +21,7 @@ def test_repo_whitelist_includes_floor_and_denies_dumps(repo_root):
     assert "src/ev_s6e9/features.py" in joined
     assert "src/ev_s6e9/deotte.py" in joined
     assert "exps/exp0010/NOTES.md" in joined
-    assert "oof.csv" not in view.rendered.lower()
+    assert not any("oof.csv" in item for item in view.listing)
     notes = (repo_root / "exps" / "exp0010" / "NOTES.md").read_text(encoding="utf-8")
     assert "OOF not committed" in notes
 

@@ -7,7 +7,7 @@ import pandas as pd
 import pytest
 
 from ev_s6e9.data import synth
-from ev_s6e9.features import HELPER_COLS, FeatureBuilder, RECIPE_COL
+from ev_s6e9.features import HELPER_COLS, RECIPE_COL, FeatureBuilder
 
 
 def _row(**kw) -> pd.DataFrame:
@@ -75,7 +75,15 @@ def test_category_codes_shared_train_test():
     fb = FeatureBuilder().fit(tr, te)
     x_tr = fb.transform(tr)
     x_te = fb.transform(te)
-    for c in ("Gender", "City_Type", "Current_Car_Type", "Home_Charging_Possible", "Subsidy_Available", "Range_Anxiety_Level"):
+    cats = (
+        "Gender",
+        "City_Type",
+        "Current_Car_Type",
+        "Home_Charging_Possible",
+        "Subsidy_Available",
+        "Range_Anxiety_Level",
+    )
+    for c in cats:
         assert x_tr[c].dtype == np.int16 or str(x_tr[c].dtype) == "int16"
         assert x_te[c].min() >= -1
 
