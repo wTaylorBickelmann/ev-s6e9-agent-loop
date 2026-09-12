@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 from loop.ledger import (
     append_result,
     append_strategy,

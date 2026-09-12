@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from loop.adapters.fallback import FallbackPlanner
-
 from loop.models import Plan, PlannerError
 
 

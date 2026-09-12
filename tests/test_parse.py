@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import pytest
 
-
 from loop.adapters.antigravity import build_agy_cmd, looks_like_credit_failure, parse_agy_envelope
 from loop.models import PlannerError
 from loop.parse import parse_plan, parse_result_line

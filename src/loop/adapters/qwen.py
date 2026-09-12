@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-
 from loop.ledger import parse_result_rows
 from loop.models import Plan, RunResult
 from loop.parse import parse_result_line

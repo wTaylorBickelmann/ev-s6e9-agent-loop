@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from loop import context, ledger
-
 from loop.config import Settings
 from loop.factory import build_executor, build_planner, competition_root_label
 from loop.log import log

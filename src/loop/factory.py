@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 
-
 from loop.adapters.antigravity import PlannerAntigravity
 from loop.adapters.deepseek import PlannerDeepSeek
 from loop.adapters.fallback import FallbackPlanner

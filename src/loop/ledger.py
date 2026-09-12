@@ -7,7 +7,6 @@ import re
 from datetime import date
 from pathlib import Path
 
-
 from loop.models import Plan, RunResult
 
 _ID = re.compile(r"\bs(\d+)\b", re.I)

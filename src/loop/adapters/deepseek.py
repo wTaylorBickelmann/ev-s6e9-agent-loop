@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from loop.http_chat import chat_complete
-
 from loop.models import Plan, PlannerError
 from loop.parse import parse_plan
 from loop.shell import timeout_seconds

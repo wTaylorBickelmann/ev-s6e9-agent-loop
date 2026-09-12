@@ -6,7 +6,6 @@ import argparse
 import sys
 from pathlib import Path
 
-
 from loop.config import find_root, load_settings
 from loop.log import log
 from loop.orchestrator import Loop

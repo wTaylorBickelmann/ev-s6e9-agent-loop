@@ -6,7 +6,6 @@ import json
 import re
 from pathlib import Path
 
-
 from loop.models import Plan, PlannerError
 from loop.parse import parse_plan
 from loop.shell import run_cmd, timeout_seconds
