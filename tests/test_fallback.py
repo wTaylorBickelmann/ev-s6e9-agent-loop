@@ -1,20 +1,30 @@
+"""Antigravity → DeepSeek fallback on recoverable planner errors."""
+
 from __future__ import annotations
 
 from loop.adapters.fallback import FallbackPlanner
+
 from loop.models import Plan, PlannerError
 
 
 class _Boom:
+    """Planner that always raises a recoverable auth error."""
+
     name = "antigravity"
 
     def plan(self, prompt: str) -> Plan:
+        """Raise recoverable PlannerError."""
         raise PlannerError("authentication required")
 
 
 class _Ok:
+    """Planner that returns a canned s009 plan."""
+
     name = "deepseek"
 
     def plan(self, prompt: str) -> Plan:
+        """Return a successful Plan (source=deepseek)."""
+
         return Plan(strategy_id="s009", one_liner=prompt[:20], spec="# s009\n", source=self.name)
 
 

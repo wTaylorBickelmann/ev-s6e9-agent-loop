@@ -15,6 +15,8 @@ from ev_s6e9.schema import ID_COL, TARGET, check_submission
 
 
 def load_strategy(out: Path | None = None) -> str:
+    """Read `strategy` from cv.json (`lgbm` if the file is missing)."""
+
     path = (out or OUTPUTS) / CV_JSON.name
     if not path.exists():
         return "lgbm"
@@ -23,6 +25,8 @@ def load_strategy(out: Path | None = None) -> str:
 
 
 def load_models(models_dir: Path | None = None) -> list:
+    """Load `fold*.joblib` from the LightGBM models directory."""
+
     d = models_dir or MODELS_DIR
     paths = sorted(d.glob("fold*.joblib"))
     if not paths:
@@ -31,12 +35,16 @@ def load_models(models_dir: Path | None = None) -> list:
 
 
 def predict_proba_lgbm(df: pd.DataFrame, models: list) -> np.ndarray:
+    """Average LightGBM fold probabilities on `prep_x(df)`."""
+
     x = prep_x(df)
     ps = [m.predict_proba(x)[:, 1] for m in models]
     return np.mean(ps, axis=0)
 
 
 def predict_proba(df: pd.DataFrame, *, strategy: str | None = None, out: Path | None = None) -> np.ndarray:
+    """Dispatch to Deotte or LightGBM using saved artifacts under `out`."""
+
     out = out or OUTPUTS
     strategy = strategy or load_strategy(out)
     if strategy == "deotte":
@@ -47,6 +55,8 @@ def predict_proba(df: pd.DataFrame, *, strategy: str | None = None, out: Path | 
 
 
 def write_submission(ids, p, path: Path | None = None) -> Path:
+    """Write `id,Will_Buy_EV` after schema checks."""
+
     path = path or SUB_CSV
     path.parent.mkdir(parents=True, exist_ok=True)
     sub = pd.DataFrame({ID_COL: ids, TARGET: p})
@@ -63,6 +73,8 @@ def predict(
     path: Path | None = None,
     out: Path | None = None,
 ) -> Path:
+    """Average fold models on test and write outputs/submission.csv."""
+
     out = out or (models_dir.parent if models_dir else OUTPUTS)
     p = predict_proba(test, strategy=strategy, out=out)
     out_path = write_submission(test[ID_COL], p, path=path)

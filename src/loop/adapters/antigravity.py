@@ -1,8 +1,11 @@
+"""Headless Antigravity (`agy`) planner: Gemini Flash via CLI, JSON envelope."""
+
 from __future__ import annotations
 
 import json
 import re
 from pathlib import Path
+
 
 from loop.models import Plan, PlannerError
 from loop.parse import parse_plan
@@ -17,10 +20,13 @@ CREDIT_RE = re.compile(
 
 
 def looks_like_credit_failure(text: str) -> bool:
+    """True when stderr/stdout looks like auth, quota, or billing failure."""
     return bool(CREDIT_RE.search(text or ""))
 
 
 def parse_agy_envelope(stdout: str) -> str:
+    """Pull the planner text out of `agy --output-format json` (or raw text)."""
+
     start, end = stdout.find("{"), stdout.rfind("}")
     if start < 0 or end <= start:
         text = stdout.strip()
@@ -66,11 +72,14 @@ class PlannerAntigravity:
     name = "antigravity"
 
     def __init__(self, cfg: dict, *, cwd: Path, default_id: str):
+        """`cfg` is `planner.antigravity` (bin, model, effort, timeouts)."""
         self.cfg = cfg
         self.cwd = cwd
         self.default_id = default_id
 
     def plan(self, prompt: str) -> Plan:
+        """Run `agy` and parse a Plan; raise recoverable PlannerError on CLI failure."""
+
         argv = build_agy_cmd(self.cfg, prompt)
         result = run_cmd(
             argv,
@@ -89,6 +98,8 @@ class PlannerAntigravity:
 
 
 def _agy_message(code: int, blob: str) -> str:
+    """Short error string for logs; tags credit/auth failures for fallback."""
+
     hint = (
         "agy credit/auth/quota failure"
         if looks_like_credit_failure(blob)

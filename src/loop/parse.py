@@ -1,7 +1,10 @@
+"""Parse planner marker blocks / JSON and executor RESULT lines."""
+
 from __future__ import annotations
 
 import json
 import re
+
 
 from loop.models import Plan, RunResult
 
@@ -13,6 +16,8 @@ _RESULT = re.compile(
 
 
 def parse_plan(text: str, *, default_id: str) -> Plan:
+    """Accept JSON, `<<<MARKER>>>` blocks, or a heading-led markdown spec."""
+
     data = _extract_json_object(text)
     if data and ("spec" in data or "one_liner" in data or "id" in data):
         spec = str(data.get("spec") or data.get("body") or "").strip()
@@ -47,6 +52,8 @@ def parse_plan(text: str, *, default_id: str) -> Plan:
 
 
 def parse_result_line(text: str, *, default_id: str) -> RunResult | None:
+    """Find `RESULT id=… status=… cv=… lb=… notes=…` in executor stdout."""
+
     match = _RESULT.search(text or "")
     if not match:
         return None
@@ -60,6 +67,8 @@ def parse_result_line(text: str, *, default_id: str) -> RunResult | None:
 
 
 def _markers(text: str) -> dict[str, str]:
+    """Extract `<<<KEY>>>` … next-marker sections from planner output."""
+
     out: dict[str, str] = {}
     pattern = re.compile(r"<<<([A-Z_]+)>>>\s*(.*?)\s*(?=<<<|$)", re.S)
     for key, value in pattern.findall(text):
@@ -68,6 +77,8 @@ def _markers(text: str) -> dict[str, str]:
 
 
 def _extract_json_object(text: str) -> dict | None:
+    """First JSON object in a fenced block or between the first `{` and last `}`."""
+
     text = text.strip()
     fence = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.S)
     blob = fence.group(1) if fence else None
@@ -85,11 +96,15 @@ def _extract_json_object(text: str) -> dict | None:
 
 
 def _clean_id(value: str, default: str) -> str:
+    """Keep `sNNN` if present; otherwise use `default`."""
+
     match = re.search(r"s\d+", value, re.I)
     return match.group(0).lower() if match else default
 
 
 def _clean_phase(value: str) -> str:
+    """Map free text to eda|baseline|fe|stack (default baseline)."""
+
     low = value.strip().lower()
     for name in ("eda", "baseline", "fe", "stack"):
         if re.search(rf"(?<![a-z]){name}(?![a-z])", low):
@@ -98,6 +113,8 @@ def _clean_phase(value: str) -> str:
 
 
 def _first_heading(text: str) -> str:
+    """First non-empty line, `#` stripped — used as a one-liner fallback."""
+
     for line in text.splitlines():
         line = line.strip().lstrip("#").strip()
         if line:
@@ -106,10 +123,14 @@ def _first_heading(text: str) -> str:
 
 
 def _fallback_spec(sid: str, one_liner: str) -> str:
+    """Minimal CURRENT_STRATEGY body when the planner omitted a spec."""
+
     return f"# {sid}\n\n## Hypothesis\n\n{one_liner or 'See planner output.'}\n"
 
 
 def _num(value: str) -> float | None:
+    """Parse a RESULT metric token; dashes / n/a → None."""
+
     text = value.strip()
     if text in {"", "-", "—", "na", "n/a", "none", "null"}:
         return None

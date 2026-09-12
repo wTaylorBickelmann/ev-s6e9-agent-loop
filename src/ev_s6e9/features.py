@@ -17,12 +17,16 @@ TE_COL = "Annual_Income_USD"
 
 
 def te_fit(vals: pd.Series, y: np.ndarray, m: float = 20.0) -> tuple[pd.Series, float]:
+    """Smoothed target-encode `vals` (m-prior); return (mapping, global prior)."""
+
     prior = float(np.mean(y))
     g = pd.DataFrame({"v": vals.to_numpy(), "y": y}).groupby("v")["y"].agg(["sum", "count"])
     return (g["sum"] + prior * m) / (g["count"] + m), prior
 
 
 def te_apply(vals: pd.Series, mapping: pd.Series, prior: float) -> np.ndarray:
+    """Map values through a TE table; unseen keys get `prior`."""
+
     return vals.map(mapping).fillna(prior).to_numpy(dtype=np.float32)
 
 
@@ -68,10 +72,14 @@ def prep_x(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def split_xy(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
+    """Feature matrix (`prep_x`) and encoded target."""
+
     return prep_x(df), encode_target(df[TARGET])
 
 
 def _yes(s: pd.Series) -> pd.Series:
+    """1.0 where the cell is Yes (case-insensitive), else 0.0."""
+
     return s.astype(str).str.strip().str.lower().eq("yes").astype(float)
 
 
@@ -79,6 +87,8 @@ class FeatureBuilder:
     """Deotte Fable 5.1: helper features, recipe score/logit, category codes."""
 
     def __init__(self, freq: bool = False, te: bool = False) -> None:
+        """`freq` adds value counts; `te` is a flag for the Deotte train path."""
+
         self.freq = freq
         self.te = te
         self._cat_dtypes: dict[str, pd.CategoricalDtype] = {}
@@ -86,6 +96,8 @@ class FeatureBuilder:
         self._fitted = False
 
     def fit(self, train: pd.DataFrame, test: pd.DataFrame | None = None) -> FeatureBuilder:
+        """Learn shared category codes (and optional freq maps) from train+test."""
+
         frames = [train]
         if test is not None:
             frames.append(test)
@@ -100,11 +112,15 @@ class FeatureBuilder:
         return self
 
     def _require_fit(self) -> None:
+        """Raise if `transform` is called before `fit`."""
+
         if not self._fitted:
             raise RuntimeError("FeatureBuilder.fit() required before transform")
 
     @staticmethod
     def recipe_score(df: pd.DataFrame) -> pd.Series:
+        """Deotte linear recipe: income + concern + subsidy − range anxiety."""
+
         income = pd.to_numeric(df["Annual_Income_USD"], errors="coerce") / 1e5
         concern = pd.to_numeric(df["Environmental_Concern_Level"], errors="coerce")
         subsidy = _yes(df["Subsidy_Available"])
@@ -119,11 +135,15 @@ class FeatureBuilder:
 
     @staticmethod
     def recipe_logit(df: pd.DataFrame) -> np.ndarray:
+        """Recipe score as a logit, used as XGB `base_margin` (m2)."""
+
         score = FeatureBuilder.recipe_score(df).to_numpy(dtype=float)
         p = np.clip(norm.cdf(score - 5.5), 1e-6, 1 - 1e-6)
         return np.log(p / (1 - p))
 
     def _helper_frame(self, df: pd.DataFrame) -> pd.DataFrame:
+        """worry_score, charger totals, and subsidy interactions."""
+
         commute = pd.to_numeric(df["Daily_Commute_km"], errors="coerce")
         home = pd.to_numeric(df["Charging_Stations_Near_Home"], errors="coerce")
         work = pd.to_numeric(df["Charging_Stations_Near_Work"], errors="coerce")
@@ -142,6 +162,8 @@ class FeatureBuilder:
         )
 
     def transform(self, df: pd.DataFrame, *, with_recipe: bool = False) -> pd.DataFrame:
+        """Numeric + category codes + helpers; optional recipe_score and freq cols."""
+
         self._require_fit()
         check_cols(df.columns, FEATURE_COLS, "features")
         helpers = self._helper_frame(df)

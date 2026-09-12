@@ -1,6 +1,9 @@
+"""Local DeepSeek planner via OpenAI-compatible chat completions (Ollama / vLLM)."""
+
 from __future__ import annotations
 
 from loop.http_chat import chat_complete
+
 from loop.models import Plan, PlannerError
 from loop.parse import parse_plan
 from loop.shell import timeout_seconds
@@ -12,10 +15,13 @@ class PlannerDeepSeek:
     name = "deepseek"
 
     def __init__(self, cfg: dict, *, default_id: str):
+        """`cfg` is the `planner.deepseek` section (base_url, model, api_key)."""
         self.cfg = cfg
         self.default_id = default_id
 
     def plan(self, prompt: str) -> Plan:
+        """Ask the chat endpoint for a marker-block plan and parse it."""
+
         base = str(self.cfg.get("base_url") or "").strip()
         model = str(self.cfg.get("model") or "").strip()
         if not base or not model:

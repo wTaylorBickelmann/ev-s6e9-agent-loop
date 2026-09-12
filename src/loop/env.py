@@ -1,3 +1,5 @@
+"""Load `.env` and expand `${VAR:-default}` placeholders in loop.yaml."""
+
 from __future__ import annotations
 
 import os
@@ -8,6 +10,8 @@ _ENV = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?\}")
 
 
 def load_dotenv(path: Path) -> None:
+    """Set missing os.environ keys from a KEY=VALUE dotenv file."""
+
     if not path.is_file():
         return
     for raw in path.read_text(encoding="utf-8").splitlines():
@@ -20,6 +24,8 @@ def load_dotenv(path: Path) -> None:
 
 
 def expand(value, environ: dict[str, str] | None = None):
+    """Walk strings/dicts/lists and replace `${VAR:-default}` from the environment."""
+
     env = environ if environ is not None else os.environ
 
     if isinstance(value, str):

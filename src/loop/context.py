@@ -1,6 +1,9 @@
+"""Assemble the planner prompt from the whitelist only (byte-capped, deny-first)."""
+
 from __future__ import annotations
 
 from pathlib import Path
+
 
 import yaml
 
@@ -20,10 +23,13 @@ ALWAYS_DENY_NAMES = frozenset(
 
 
 def _norm(rel: str) -> str:
+    """Normalize a relative path for prefix / basename deny checks."""
     return rel.replace("\\", "/").lstrip("./")
 
 
 def is_denied(rel: str, deny: list[str]) -> bool:
+    """True if `rel` is a dump (oof/csv), a deny prefix, or a listed deny path."""
+
     path = _norm(rel)
     if Path(path).name in ALWAYS_DENY_NAMES:
         return True
@@ -42,12 +48,16 @@ def is_denied(rel: str, deny: list[str]) -> bool:
 
 
 def _load_reads(path: Path) -> dict:
+    """Parse planner_reads.yaml (`always` / `optional` / `deny` / byte caps)."""
+
     if not path.is_file():
         return {"always": [], "optional": [], "deny": []}
     return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
 
 
 def resolve_candidates(rel: str, *, loop_root: Path, competition_root: Path | None) -> list[Path]:
+    """Absolute paths to try for `rel` (competition root first, then loop root)."""
+
     rel_path = Path(_norm(rel))
     out: list[Path] = []
     if competition_root is not None:
@@ -71,6 +81,8 @@ def assemble(
     max_bytes_per_file: int = 24000,
     max_total_bytes: int = 80000,
 ) -> AssembledContext:
+    """Inline whitelist files into slices; skip denied/missing; honor byte caps."""
+
     spec = _load_reads(reads_path)
     deny = [str(x) for x in (spec.get("deny") or [])]
     always = [str(x) for x in (spec.get("always") or [])]

@@ -60,6 +60,8 @@ def missing_cols(cols: list[str], have) -> list[str]:
 
 
 def check_cols(have, cols: list[str], name: str) -> None:
+    """Raise if any required name in `cols` is missing from `have`."""
+
     miss = missing_cols(cols, have)
     if miss:
         raise ValueError(f"{name} missing columns: {miss}")

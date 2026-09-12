@@ -1,0 +1,63 @@
+S6E9 instance loop — how the pieces fit
+=======================================
+
+One iteration: planner → ledgers → executor → exps/train → RESULTS.
+The planner may read only config/planner_reads.yaml (byte-capped).
+logs/, oof.csv, and competition CSVs are never inlined.
+
++---------------------------+
+| config/planner_reads.yaml |
+| (whitelist only; no logs) |
++-------------+-------------+
+              |
+              v
++-------------+-------------+       recoverable fail
+| PLANNER                   |---------------------+
+| Antigravity (`agy`)       |                     |
++-------------+-------------+                     v
+              |                       +-----------+-----------+
+              | ok                    | FALLBACK              |
+              |                       | DeepSeek (local HTTP) |
+              |                       +-----------+-----------+
+              |                                   |
+              +----------------+------------------+
+                               |
+                               v
+              +----------------+------------------+
+              | LEDGERS                           |
+              | rewrite  CURRENT_STRATEGY.md      |
+              | append   STRATEGIES.md            |
+              +----------------+------------------+
+                               |
+                               v
+              +----------------+------------------+
+              | EXECUTOR                          |
+              | Qwen Code (`qwen -p`, local ~27B) |
+              +----------------+------------------+
+                               |
+                               v
+              +----------------+------------------+
+              | TRAIN                             |
+              | copy keep  exps/exp0010           |
+              |         -> exps/expNNNN           |
+              | scripts/run_exp.py                |
+              | python -m ev_s6e9 train           |
+              +----------------+------------------+
+                               |
+              +----------------+------------------+
+              | RESULTS                           |
+              | append   ledger/RESULTS.md        |
+              | write    ledger/runs/<id>.json    |
+              | write    logs/<id>.log (disk only)|
+              +----------------+------------------+
+                               |
+                               v
+                         next iteration
+
+`--dry-run` uses mock planner + executor. Same ledger writes; no CLIs/GPU.
+
+Packages
+--------
+src/loop/      orchestrator, whitelist assembler, adapters, ledger I/O
+src/ev_s6e9/   features, Deotte/LightGBM train, predict, submit
+scripts/       run_exp.py (one exp folder), run-loop.sh

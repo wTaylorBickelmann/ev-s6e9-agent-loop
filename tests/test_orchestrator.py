@@ -1,6 +1,9 @@
+"""Dry-run loop, execute-once id reuse, whitelist, and CLI `--root` isolation."""
+
 from __future__ import annotations
 
 from loop.cli import main
+
 from loop.ledger import next_strategy_id
 from loop.orchestrator import Loop
 from loop.parse import parse_plan

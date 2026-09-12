@@ -1,6 +1,9 @@
+"""Strategy id increment, idempotent appends, and best-CV pick."""
+
 from __future__ import annotations
 
 from pathlib import Path
+
 
 from loop.ledger import (
     append_result,

@@ -1,9 +1,12 @@
+"""Compact ledger I/O: next id, append STRATEGIES/RESULTS, rewrite CURRENT_STRATEGY."""
+
 from __future__ import annotations
 
 import json
 import re
 from datetime import date
 from pathlib import Path
+
 
 from loop.models import Plan, RunResult
 
@@ -15,6 +18,8 @@ _ROW = re.compile(
 
 
 def next_strategy_id(strategies_md: Path) -> str:
+    """Next `sNNN` after the highest id already in STRATEGIES.md (`s001` if empty)."""
+
     n = 0
     if strategies_md.is_file():
         for match in _ID.finditer(strategies_md.read_text(encoding="utf-8")):
@@ -23,6 +28,8 @@ def next_strategy_id(strategies_md: Path) -> str:
 
 
 def parse_result_rows(results_md: Path) -> list[RunResult]:
+    """Parse RESULTS.md table rows into RunResult (skip header / separator)."""
+
     if not results_md.is_file():
         return []
     rows: list[RunResult] = []
@@ -48,6 +55,8 @@ def parse_result_rows(results_md: Path) -> list[RunResult]:
 def best_cv(
     results: list[RunResult], *, higher_is_better: bool = True
 ) -> tuple[str, float] | None:
+    """Winning `(strategy_id, cv)` among ok rows, or None if nothing scored."""
+
     scored = [r for r in results if r.cv is not None and r.status == "ok"]
     if not scored:
         return None
@@ -59,6 +68,8 @@ def best_cv(
 
 
 def phase_coverage(strategies_md: Path) -> str:
+    """Counts of eda/baseline/fe/stack rows for the planner prompt."""
+
     counts = {"eda": 0, "baseline": 0, "fe": 0, "stack": 0}
     if strategies_md.is_file():
         for line in strategies_md.read_text(encoding="utf-8").splitlines():
@@ -70,10 +81,14 @@ def phase_coverage(strategies_md: Path) -> str:
 
 
 def has_result(results_md: Path, strategy_id: str) -> bool:
+    """True if RESULTS.md already has a row for this id."""
+
     return any(r.strategy_id == strategy_id for r in parse_result_rows(results_md))
 
 
 def has_strategy(strategies_md: Path, strategy_id: str) -> bool:
+    """True if STRATEGIES.md already has a table row for this id."""
+
     if not strategies_md.is_file():
         return False
     text = strategies_md.read_text(encoding="utf-8")
@@ -81,11 +96,15 @@ def has_strategy(strategies_md: Path, strategy_id: str) -> bool:
 
 
 def write_current(path: Path, plan: Plan) -> None:
+    """Overwrite CURRENT_STRATEGY.md with the full spec."""
+
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(plan.spec.rstrip() + "\n", encoding="utf-8")
 
 
 def append_strategy(path: Path, plan: Plan, when: date | None = None) -> None:
+    """Append one STRATEGIES.md row; no-op if the id is already present."""
+
     path.parent.mkdir(parents=True, exist_ok=True)
     if not path.is_file():
         path.write_text(_STRATEGIES_HEADER, encoding="utf-8")
@@ -100,6 +119,8 @@ def append_strategy(path: Path, plan: Plan, when: date | None = None) -> None:
 
 
 def append_result(path: Path, result: RunResult) -> None:
+    """Append one RESULTS.md row; no-op if the id is already present."""
+
     path.parent.mkdir(parents=True, exist_ok=True)
     if not path.is_file():
         path.write_text(_RESULTS_HEADER, encoding="utf-8")
@@ -116,6 +137,8 @@ def append_result(path: Path, result: RunResult) -> None:
 
 
 def write_run_json(path: Path, result: RunResult) -> None:
+    """Write metrics-only JSON under ledger/runs/ (never planner-visible)."""
+
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "id": result.strategy_id,
@@ -129,12 +152,16 @@ def write_run_json(path: Path, result: RunResult) -> None:
 
 
 def current_spec(path: Path) -> str:
+    """Full CURRENT_STRATEGY.md text, or empty if the file is missing."""
+
     if not path.is_file():
         return ""
     return path.read_text(encoding="utf-8")
 
 
 def _maybe_float(value: str) -> float | None:
+    """Parse a table cell to float; em-dash / n/a / junk → None."""
+
     text = value.strip().strip("`")
     if text in {"", "-", "—", "na", "n/a", "none", "null"}:
         return None
@@ -145,6 +172,8 @@ def _maybe_float(value: str) -> float | None:
 
 
 def _fmt(value: float | None) -> str:
+    """Format a metric cell (`—` when missing)."""
+
     if value is None:
         return "—"
     return f"{value:.6g}"

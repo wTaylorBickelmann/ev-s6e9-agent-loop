@@ -7,6 +7,8 @@ from pathlib import Path
 
 
 def _root() -> Path:
+    """Repo root: `$EV_S6E9_ROOT`, or walk up from this package to `src/`."""
+
     env = os.environ.get("EV_S6E9_ROOT")
     if env:
         return Path(env)

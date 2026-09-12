@@ -24,11 +24,15 @@ def load_nb_train(*, n_synth: int = 400) -> pd.DataFrame:
 
 
 def experiments_text() -> str:
+    """EXPERIMENTS.md body for notebooks, or a short missing-file note."""
+
     p = EXPERIMENTS_MD
     return p.read_text(encoding="utf-8") if p.exists() else "_No EXPERIMENTS.md found._"
 
 
 def data_banner() -> str:
+    """Markdown banner: full train.csv vs committed sample."""
+
     if is_full_train(TRAIN_CSV):
         return "> Using `data/raw/train.csv` (full competition file)."
     return (

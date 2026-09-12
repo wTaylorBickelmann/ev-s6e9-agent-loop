@@ -1,3 +1,5 @@
+"""Minimal OpenAI-compatible `/chat/completions` client (stdlib only)."""
+
 from __future__ import annotations
 
 import json
@@ -15,6 +17,7 @@ def chat_complete(
     messages: list[dict[str, str]],
     timeout: float = 180.0,
 ) -> str:
+    """POST a chat completion and return the first choice's text."""
     url = base_url.rstrip("/") + "/chat/completions"
     payload = {"model": model, "messages": messages, "temperature": 0.2}
     req = urllib.request.Request(

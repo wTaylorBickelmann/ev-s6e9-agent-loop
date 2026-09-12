@@ -1,6 +1,9 @@
+"""Planner whitelist: deny dumps, skip missing optionals, honor byte caps."""
+
 from __future__ import annotations
 
 from pathlib import Path
+
 
 from loop.context import assemble, is_denied
 

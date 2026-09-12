@@ -4,6 +4,21 @@ Token thrift is a feature. Models that wander into `logs/` burn the budget.
 This repo is a **filled instance** of [kaggle-agent-loop](https://github.com/wTaylorBickelmann/kaggle-agent-loop):
 the loop harness lives in `src/loop/`; the competition library lives in `src/ev_s6e9/`.
 
+```
+planner (agy -> DeepSeek) --> CURRENT_STRATEGY + STRATEGIES.md
+        |
+        v
+executor (qwen) --> copy exp0010 keep -> exps/expNNNN
+        |           scripts/run_exp.py / python -m ev_s6e9 train
+        v
+RESULTS.md  (+ ledger/runs/<id>.json; logs/<id>.log stays on disk)
+        |
+        v
+next plan (whitelist only — never logs/ or oof.csv)
+```
+
+Full boxes: `README.md` and `docs/architecture.txt`.
+
 ## Planner whitelist
 
 The planner may see **only** paths listed in `config/planner_reads.yaml`.

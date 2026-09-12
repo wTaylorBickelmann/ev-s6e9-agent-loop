@@ -35,7 +35,9 @@ def format_chunk(
     takeaway: str = "",
     day: str | None = None,
 ) -> str:
+    """Format one dated EXPERIMENTS.md chunk (title, CV, LB, takeaway)."""
     day = day or datetime.now(timezone.utc).date().isoformat()
+
     takeaway = takeaway or "auto-logged from train"
     return f"### {day} — {title}\n- CV: {cv}\n- LB: {lb}\n- Takeaway: {takeaway}"
 

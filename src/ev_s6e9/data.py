@@ -20,6 +20,8 @@ _ANX = ["Low", "Medium", "High"]
 
 
 def load_train(path: Path | None = None) -> pd.DataFrame:
+    """Read train.csv and require the exact competition header."""
+
     p = path or TRAIN_CSV
     df = pd.read_csv(p)
     check_exact(df.columns, TRAIN_COLS, "train")
@@ -27,6 +29,8 @@ def load_train(path: Path | None = None) -> pd.DataFrame:
 
 
 def load_test(path: Path | None = None) -> pd.DataFrame:
+    """Read test.csv and require the exact competition header (no target)."""
+
     p = path or TEST_CSV
     df = pd.read_csv(p)
     check_exact(df.columns, TEST_COLS, "test")
@@ -34,6 +38,8 @@ def load_test(path: Path | None = None) -> pd.DataFrame:
 
 
 def load_sample(path: Path | None = None) -> pd.DataFrame:
+    """Read sample_submission.csv as-is."""
+
     p = path or SAMPLE_CSV
     return pd.read_csv(p)
 
@@ -92,6 +98,8 @@ def synth(n: int = 200, seed: int = 0, *, target: bool = True, start_id: int = 0
 
 
 def write_synth_raw(dest: Path | None = None, n_train: int = 400, n_test: int = 100) -> Path:
+    """Write schema-accurate train/test/sample CSVs under data/raw (smoke only)."""
+
     dest = dest or DATA_RAW
     dest.mkdir(parents=True, exist_ok=True)
     tr = synth(n_train, seed=0, target=True)
@@ -103,6 +111,8 @@ def write_synth_raw(dest: Path | None = None, n_train: int = 400, n_test: int = 
 
 
 def has_real_data(raw: Path | None = None) -> bool:
+    """True when data/raw already has train.csv and test.csv."""
+
     raw = raw or DATA_RAW
     return (raw / "train.csv").exists() and (raw / "test.csv").exists()
 

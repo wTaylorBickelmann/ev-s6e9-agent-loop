@@ -11,6 +11,8 @@ import pandas as pd
 
 
 def submit(path: Path | None = None, message: str = "lgbm baseline") -> None:
+    """Validate submission.csv, then `kaggle competitions submit`."""
+
     path = path or SUB_CSV
     if not path.exists():
         raise FileNotFoundError(f"{path} missing; run predict first")

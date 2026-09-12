@@ -1,7 +1,10 @@
+"""Headless Qwen Code executor: `qwen -p` against a local OpenAI-compatible model."""
+
 from __future__ import annotations
 
 import os
 from pathlib import Path
+
 
 from loop.ledger import parse_result_rows
 from loop.models import Plan, RunResult
@@ -22,12 +25,16 @@ class ExecutorQwenCode:
         loop_root: Path,
         extra_dirs: list[Path] | None = None,
     ):
+        """`cfg` is `executor.qwen`. `cwd` is where train scripts run."""
+
         self.cfg = cfg
         self.cwd = cwd
         self.loop_root = loop_root
         self.extra_dirs = extra_dirs or []
 
     def execute(self, prompt: str, plan: Plan) -> RunResult:
+        """Run `qwen -p`, then parse a RESULT line or the new RESULTS.md row."""
+
         argv = [str(self.cfg.get("bin") or "qwen"), "-p", prompt]
         auth = self.cfg.get("auth_type")
         if auth:

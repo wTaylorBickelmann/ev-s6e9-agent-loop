@@ -1,6 +1,9 @@
+"""`${VAR:-default}` expansion used by loop.yaml."""
+
 from __future__ import annotations
 
 from loop.env import expand
+
 
 
 def test_expand_default_and_override():

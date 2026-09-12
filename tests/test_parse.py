@@ -1,6 +1,9 @@
+"""Planner marker/JSON parse, RESULT lines, and agy envelope helpers."""
+
 from __future__ import annotations
 
 import pytest
+
 
 from loop.adapters.antigravity import build_agy_cmd, looks_like_credit_failure, parse_agy_envelope
 from loop.models import PlannerError
