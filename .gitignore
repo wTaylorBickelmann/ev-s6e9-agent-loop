@@ -1,0 +1,42 @@
+.env
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Kaggle credentials and competition data — never commit
+kaggle.json
+.kaggle/
+data/raw/*
+!data/raw/.gitkeep
+data/processed/
+*.csv
+!sample_submission.example.csv
+
+# Long experiment output — never commit, never feed to the planner
+logs/*
+!logs/.gitkeep
+ledger/runs/*.json
+!ledger/runs/.gitkeep
+outputs/*
+!outputs/.gitkeep
+exps/**/oof.csv
+*.pkl
+*.joblib
+*.lgb
+
+# Generated site / notebook junk
+_site/
+.ipynb_checkpoints/
+__marimo__/
+.marimo/
+.qwen/
+.DS_Store
+reports/*.png
+reports/*.svg

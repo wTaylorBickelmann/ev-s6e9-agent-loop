@@ -1,0 +1,39 @@
+# Absolute rule: the planner prompt is assembled ONLY from these paths.
+# The orchestrator never opens logs/, ledger/runs/, data dumps, or OOF CSVs.
+# Optional files are skipped when missing. Deny wins even if also listed under always.
+
+always:
+  - ledger/STRATEGIES.md
+  - ledger/RESULTS.md
+  - ledger/CURRENT_STRATEGY.md
+  - CURSOR.md
+  - LEARNINGS.md
+  - STRATEGY.md
+
+# Competition entrypoints + exp0010 floor. Byte-capped; skip if absent.
+optional:
+  - src/ev_s6e9/features.py
+  - src/ev_s6e9/deotte.py
+  - src/ev_s6e9/model.py
+  - src/ev_s6e9/train.py
+  - exps/exp0010/NOTES.md
+  - exps/exp0010/config.json
+  - STRATEGIES.md
+  - DEOTTE_BRIEF.md
+  - TOP20_PUBLIC_NOTEBOOKS.md
+
+deny:
+  - logs/
+  - ledger/runs/
+  - data/
+  - outputs/
+  - reports/kills/
+  - reports/plans/
+  - notebooks/
+  - EXPERIMENTS.md
+  - oof.csv
+  - .env
+  - .git/
+
+max_bytes_per_file: 24000
+max_total_bytes: 80000
