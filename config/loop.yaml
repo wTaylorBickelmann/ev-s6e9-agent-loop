@@ -1,0 +1,60 @@
+# Loop + adapter settings. ${VAR:-default} expands from the environment / .env.
+# This repo is the S6E9 instance: competition code lives here (not a sibling checkout).
+
+competition:
+  name: playground-s6e9-ev-purchase
+  root: ${COMPETITION_ROOT:-.}
+  metric: roc_auc
+  higher_is_better: true
+  target: Will_Buy_EV
+
+loop:
+  max_iterations: 10
+  target_cv: null
+  max_consecutive_failures: 3
+
+planner:
+  # antigravity | deepseek
+  primary: ${LOOP_PLANNER:-antigravity}
+  fallback: deepseek
+  fallback_enabled: true
+  prompt: prompts/planner.md
+  antigravity:
+    bin: ${AGY_BIN:-agy}
+    # Prefer the left-column slug from `agy models` (e.g. gemini-3.5-flash-high).
+    # Display names such as "Gemini 3.5 Flash (High)" also work on some versions.
+    model: ${AGY_MODEL:-gemini-3.5-flash-high}
+    effort: ${AGY_EFFORT:-high}
+    output_format: json
+    print_timeout: 10m
+    extra_args: []
+  deepseek:
+    base_url: ${DEEPSEEK_BASE_URL:-http://127.0.0.1:11434/v1}
+    model: ${DEEPSEEK_MODEL:-deepseek-r1:32b}
+    api_key: ${DEEPSEEK_API_KEY:-ollama}
+    timeout_s: 180
+
+executor:
+  primary: qwen
+  prompt: prompts/executor.md
+  qwen:
+    bin: ${QWEN_BIN:-qwen}
+    model: ${OPENAI_MODEL:-qwen3.6:27b}
+    base_url: ${OPENAI_BASE_URL:-http://127.0.0.1:11434/v1}
+    api_key: ${OPENAI_API_KEY:-ollama}
+    auth_type: ${QWEN_AUTH_TYPE:-openai}
+    yolo: true
+    output_format: text
+    max_wall_time: 45m
+    extra_args: []
+
+paths:
+  ledger_dir: ledger
+  logs_dir: logs
+  runs_dir: ledger/runs
+  planner_reads: config/planner_reads.yaml
+
+# Hard caps so a runaway file cannot fill the planner prompt.
+budget:
+  max_bytes_per_file: 24000
+  max_total_bytes: 80000
