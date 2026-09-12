@@ -1,3 +1,5 @@
+"""Strategy id increment, idempotent appends, and best-CV pick."""
+
 from __future__ import annotations
 
 from pathlib import Path

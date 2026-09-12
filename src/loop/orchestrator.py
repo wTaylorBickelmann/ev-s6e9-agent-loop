@@ -1,3 +1,5 @@
+"""Plan → write ledgers → execute → record RESULTS. Stop on target CV or fail streak."""
+
 from __future__ import annotations
 
 from loop import context, ledger
@@ -9,7 +11,11 @@ from loop.parse import parse_plan
 
 
 class Loop:
+    """One competition-loop session bound to a Settings + ledger paths."""
+
     def __init__(self, settings: Settings, *, dry_run: bool = False):
+        """`dry_run` swaps in mock planner/executor (CI / no GPU)."""
+
         self.settings = settings
         self.dry_run = dry_run
         self.strategies = settings.ledger_dir / "STRATEGIES.md"
@@ -17,6 +23,8 @@ class Loop:
         self.current = settings.ledger_dir / "CURRENT_STRATEGY.md"
 
     def run(self, iterations: int) -> int:
+        """Plan, execute, and record up to N times. Return 1 on a fail streak."""
+
         failures = 0
         n = max(1, iterations)
         for i in range(1, n + 1):
@@ -38,6 +46,8 @@ class Loop:
         return 0
 
     def plan_once(self) -> Plan:
+        """Ask the planner for the next id; rewrite CURRENT_STRATEGY; append STRATEGIES."""
+
         nxt = ledger.next_strategy_id(self.strategies)
         planner = build_planner(self.settings, default_id=nxt, dry_run=self.dry_run)
         prompt = self._planner_prompt(nxt)
@@ -51,6 +61,8 @@ class Loop:
         return plan
 
     def execute_once(self, plan: Plan | None = None) -> RunResult:
+        """Run `plan` or CURRENT_STRATEGY via the executor (no ledger write)."""
+
         if plan is None:
             plan = self._plan_from_current()
         executor = build_executor(self.settings, dry_run=self.dry_run)
@@ -59,12 +71,16 @@ class Loop:
         return executor.execute(prompt, plan)
 
     def record(self, result: RunResult) -> None:
+        """Append RESULTS.md and write ledger/runs/<id>.json."""
+
         ledger.append_result(self.results, result)
         ledger.write_run_json(self.settings.runs_dir / f"{result.strategy_id}.json", result)
         self.settings.logs_dir.mkdir(parents=True, exist_ok=True)
         log(f"recorded {result.strategy_id} status={result.status} cv={result.cv}")
 
     def show_whitelist(self) -> AssembledView:
+        """What the planner would see (listing, skips, byte total, rendered text)."""
+
         ctx = self._assemble()
         return AssembledView(
             listing=ctx.listing,
@@ -74,6 +90,8 @@ class Loop:
         )
 
     def _assemble(self):
+        """Build the byte-capped whitelist context from planner_reads.yaml."""
+
         budget = self.settings.raw.get("budget") or {}
         return context.assemble(
             loop_root=self.settings.root,
@@ -86,6 +104,8 @@ class Loop:
         )
 
     def _planner_prompt(self, next_id: str) -> str:
+        """Fill prompts/planner.md with metric, best CV, phases, and inlined files."""
+
         ctx = self._assemble()
         template = self.settings.planner_prompt.read_text(encoding="utf-8")
         rows = ledger.parse_result_rows(self.results)
@@ -103,6 +123,8 @@ class Loop:
         )
 
     def _executor_prompt(self, plan: Plan) -> str:
+        """Fill prompts/executor.md with roots, id, and the current spec."""
+
         template = self.settings.executor_prompt.read_text(encoding="utf-8")
         spec = plan.spec or ledger.current_spec(self.current)
         return template.format(
@@ -114,6 +136,8 @@ class Loop:
         )
 
     def _plan_from_current(self) -> Plan:
+        """Rehydrate a Plan from CURRENT_STRATEGY.md for execute-once."""
+
         spec = ledger.current_spec(self.current)
         sid = ledger.next_strategy_id(self.strategies)
         parsed = parse_plan(spec, default_id=sid)
@@ -122,6 +146,8 @@ class Loop:
         return parsed
 
     def _hit_target(self, result: RunResult) -> bool:
+        """True when an ok result meets `target_cv` (higher- or lower-is-better)."""
+
         target = self.settings.target_cv
         if target is None or result.cv is None or result.status != "ok":
             return False
@@ -131,7 +157,11 @@ class Loop:
 
 
 class AssembledView:
+    """CLI-facing snapshot of the planner whitelist."""
+
     def __init__(self, listing: list[str], skipped: list[str], total_bytes: int, rendered: str):
+        """Store listing / skipped paths, byte total, and the inlined markdown."""
+
         self.listing = listing
         self.skipped = skipped
         self.total_bytes = total_bytes

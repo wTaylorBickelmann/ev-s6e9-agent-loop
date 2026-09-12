@@ -22,10 +22,13 @@ VENV_PY = ROOT / ".venv" / "bin" / "python"
 
 
 def py() -> str:
+    """Prefer the repo `.venv` interpreter when present."""
     return str(VENV_PY) if VENV_PY.exists() else sys.executable
 
 
 def resolve_exp(name: str) -> Path:
+    """Resolve `exp0010` / `exps/exp0010` to a folder that has `config.json`."""
+
     p = Path(name)
     if p.is_dir() and (p / "config.json").exists():
         return p.resolve()
@@ -41,7 +44,9 @@ def resolve_exp(name: str) -> Path:
 
 
 def main() -> int:
+    """Train from `config.json`, then copy cv/metrics/oof into the exp folder."""
     ap = argparse.ArgumentParser(description=__doc__)
+
     ap.add_argument("exp", help="exp id or path (e.g. exp0001)")
     ap.add_argument("--synth", action="store_true", help="tiny synthetic train (smoke)")
     ap.add_argument("--no-log-experiments-md", action="store_true")

@@ -13,6 +13,66 @@ for [playground-series-s6e9](https://github.com/wTaylorBickelmann/ev-purchase-ka
 The overnight loop runs **locally in this checkout**. There is no recurring pull from
 `ev-purchase-kaggle`. The old Cursor-Fable `autoloop.py` path is not used.
 
+## How the pieces fit
+
+One iteration is **planner → ledgers → executor → train → RESULTS**, then the next
+plan reads those ledgers. The planner sees only `config/planner_reads.yaml`.
+
+```
++---------------------------+
+| config/planner_reads.yaml |
+| (whitelist only; no logs) |
++-------------+-------------+
+              |
+              v
++-------------+-------------+       recoverable fail
+| PLANNER                   |---------------------+
+| Antigravity (`agy`)       |                     |
++-------------+-------------+                     v
+              |                       +-----------+-----------+
+              | ok                    | FALLBACK              |
+              |                       | DeepSeek (local HTTP) |
+              |                       +-----------+-----------+
+              |                                   |
+              +----------------+------------------+
+                               |
+                               v
+              +----------------+------------------+
+              | LEDGERS                           |
+              | rewrite  CURRENT_STRATEGY.md      |
+              | append   STRATEGIES.md            |
+              +----------------+------------------+
+                               |
+                               v
+              +----------------+------------------+
+              | EXECUTOR                          |
+              | Qwen Code (`qwen -p`, local ~27B) |
+              +----------------+------------------+
+                               |
+                               v
+              +----------------+------------------+
+              | TRAIN                             |
+              | copy keep  exps/exp0010           |
+              |         -> exps/expNNNN           |
+              | scripts/run_exp.py                |
+              | python -m ev_s6e9 train           |
+              +----------------+------------------+
+                               |
+              +----------------+------------------+
+              | RESULTS                           |
+              | append   ledger/RESULTS.md        |
+              | write    ledger/runs/<id>.json    |
+              | write    logs/<id>.log (disk only)|
+              +----------------+------------------+
+                               |
+                               v
+                         next iteration
+```
+
+`--dry-run` swaps mock planner + executor (no `agy` / `qwen` / GPU). Same ledger
+writes; CV is the fake `0.5`. A shorter copy of this picture lives in
+`docs/architecture.txt` and `CURSOR.md`.
+
 ## Floor (exp0010)
 
 Chris Deotte Fable 5.1 3×XGBoost blend (`--strategy deotte`) plus:
@@ -122,6 +182,8 @@ Optional: `src/ev_s6e9/{features,deotte,model,train}.py`, exp0010 NOTES/config,
 
 ## Layout
 
+Flow: **planner → ledgers → executor → exps/train → RESULTS** (diagram above).
+
 ```
 src/loop/            Antigravity / DeepSeek / Qwen adapters + orchestrator
 src/ev_s6e9/         vendored S6E9 library (features, deotte, train, predict, …)
@@ -130,6 +192,7 @@ scripts/run_exp.py   train one exp folder
 scripts/run-loop.sh  python -m loop run
 ledger/              compact STRATEGIES / RESULTS / CURRENT_STRATEGY
 config/loop.yaml     competition.root = .
+docs/architecture.txt
 ```
 
 ## Tests / CI

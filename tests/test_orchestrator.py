@@ -1,3 +1,5 @@
+"""Dry-run loop, execute-once id reuse, whitelist, and CLI `--root` isolation."""
+
 from __future__ import annotations
 
 from loop.cli import main

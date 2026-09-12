@@ -1,3 +1,5 @@
+"""Subprocess helper for `agy` / `qwen` (captured stdout/stderr, wall-clock timeout)."""
+
 from __future__ import annotations
 
 import subprocess
@@ -7,6 +9,8 @@ from pathlib import Path
 
 @dataclass
 class CmdResult:
+    """Exit code plus captured streams from one CLI invocation."""
+
     code: int
     stdout: str
     stderr: str
@@ -20,6 +24,8 @@ def run_cmd(
     timeout: float | None = None,
     env: dict[str, str] | None = None,
 ) -> CmdResult:
+    """Run `argv`; missing binary → 127, timeout → 124, else the process exit code."""
+
     try:
         proc = subprocess.run(
             argv,
@@ -44,6 +50,8 @@ def run_cmd(
 
 
 def timeout_seconds(value: str | int | float | None, default: float = 300.0) -> float:
+    """Parse `10m` / `90s` / bare seconds into a float; fall back to `default`."""
+
     if value is None or value == "":
         return default
     if isinstance(value, (int, float)):

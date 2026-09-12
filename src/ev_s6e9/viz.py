@@ -16,6 +16,8 @@ from ev_s6e9.schema import CAT_COLS, NUM_COLS, TARGET
 
 
 def _save(fig, path: Path) -> Path:
+    """Write a matplotlib figure to `path` and close it."""
+
     path.parent.mkdir(parents=True, exist_ok=True)
     fig.tight_layout()
     fig.savefig(path, dpi=120)
@@ -24,6 +26,8 @@ def _save(fig, path: Path) -> Path:
 
 
 def plot_target_rate(df: pd.DataFrame, out: Path | None = None) -> Path:
+    """Bar chart of Will_Buy_EV class rates."""
+
     y = encode_target(df[TARGET])
     fig, ax = plt.subplots(figsize=(4, 3))
     y.value_counts(normalize=True).sort_index().plot(kind="bar", ax=ax, color="#3b7ddd")
@@ -34,6 +38,8 @@ def plot_target_rate(df: pd.DataFrame, out: Path | None = None) -> Path:
 
 
 def plot_numeric(df: pd.DataFrame, out: Path | None = None) -> Path:
+    """Histograms of the numeric competition columns."""
+
     cols = [c for c in NUM_COLS if c in df.columns][:6]
     n = len(cols)
     fig, axes = plt.subplots(2, 3, figsize=(9, 5))
@@ -47,6 +53,8 @@ def plot_numeric(df: pd.DataFrame, out: Path | None = None) -> Path:
 
 
 def plot_cats(df: pd.DataFrame, out: Path | None = None) -> Path:
+    """Bar counts for each categorical column."""
+
     cols = [c for c in CAT_COLS if c in df.columns]
     fig, axes = plt.subplots(2, 3, figsize=(9, 5))
     for ax, c in zip(axes.ravel(), cols):
@@ -58,6 +66,8 @@ def plot_cats(df: pd.DataFrame, out: Path | None = None) -> Path:
 
 
 def plot_target_by_cat(df: pd.DataFrame, out: Path | None = None) -> Path:
+    """Positive rate of Will_Buy_EV within each categorical level."""
+
     y = encode_target(df[TARGET])
     tmp = df.assign(_y=y)
     cols = [c for c in CAT_COLS if c in df.columns]
@@ -74,6 +84,8 @@ def plot_target_by_cat(df: pd.DataFrame, out: Path | None = None) -> Path:
 
 
 def plot_importance(path: Path | None = None, out: Path | None = None) -> Path | None:
+    """Horizontal bar chart from feature_importance.csv, or None if missing."""
+
     src = path or (OUTPUTS / "feature_importance.csv")
     if not src.exists():
         return None
@@ -85,6 +97,8 @@ def plot_importance(path: Path | None = None, out: Path | None = None) -> Path |
 
 
 def eda(df: pd.DataFrame, reports: Path | None = None) -> list[Path]:
+    """Write the standard EDA PNGs under reports/ and return their paths."""
+
     reports = reports or REPORTS
     reports.mkdir(parents=True, exist_ok=True)
     paths = [

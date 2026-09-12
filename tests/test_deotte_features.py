@@ -11,6 +11,8 @@ from ev_s6e9.features import HELPER_COLS, RECIPE_COL, FeatureBuilder
 
 
 def _row(**kw) -> pd.DataFrame:
+    """One synth row with optional column overrides."""
+
     base = synth(1, seed=0, target=True).iloc[0].to_dict()
     base.update(kw)
     return pd.DataFrame([base])

@@ -24,6 +24,8 @@ VARIANTS = ("m1", "m2", "m3")
 
 
 class DeotteVariant(Enum):
+    """m1 baseline / m2 recipe as base_margin / m3 recipe as a feature."""
+
     BASELINE = "m1"
     BASE_MARGIN = "m2"
     RECIPE_FEATURE = "m3"
@@ -31,6 +33,8 @@ class DeotteVariant(Enum):
 
 @dataclass
 class VariantCv:
+    """OOF, fold AUCs, and fold models for one of the three XGB variants."""
+
     oof: np.ndarray
     fold_aucs: list[float]
     mean: float
@@ -40,6 +44,8 @@ class VariantCv:
 
 @dataclass
 class DeotteCvResult:
+    """Equal-weight blend of m1/m2/m3 plus the fitted FeatureBuilder."""
+
     oof: np.ndarray
     fold_aucs: list[float]
     mean: float
@@ -60,6 +66,8 @@ def _fit_fold(
     seed: int,
     overrides: dict,
 ) -> tuple[object, np.ndarray]:
+    """Fit one fold of one variant; return (model, val probabilities)."""
+
     use_margin = variant == DeotteVariant.BASE_MARGIN
     with_recipe = variant == DeotteVariant.RECIPE_FEATURE
     x_tr = fb.transform(raw_tr, with_recipe=with_recipe)
@@ -99,6 +107,8 @@ def run_variant_cv(
     seed: int = 42,
     model_overrides: dict | None = None,
 ) -> VariantCv:
+    """Stratified CV for a single Deotte variant."""
+
     y = encode_target(df[TARGET]).to_numpy()
     oof = np.zeros(len(y), dtype=float)
     skf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed)
@@ -132,6 +142,7 @@ def run_cv(
     freq: bool = False,
     te: bool = False,
 ) -> DeotteCvResult:
+    """Fit FeatureBuilder, run m1/m2/m3, return the equal-weight blend."""
     fb = FeatureBuilder(freq=freq, te=te).fit(train, test)
     variants: dict[str, VariantCv] = {}
     oofs = []
@@ -151,6 +162,8 @@ def run_cv(
 
 
 def save_run(df: pd.DataFrame, cv: DeotteCvResult, out: Path | None = None) -> None:
+    """Write OOF, per-variant fold models, FeatureBuilder, and cv.json."""
+
     out = out or OUTPUTS
     out.mkdir(parents=True, exist_ok=True)
     models_root = out / "models"
@@ -186,6 +199,8 @@ def log_experiment(
     note: str = "",
     path: Path | None = None,
 ) -> Path:
+    """Append a Deotte blend chunk to EXPERIMENTS.md."""
+
     title = f"Deotte XGB 3-model blend ({short_xgb_params(cv.params)}), {folds}-fold"
     chunk = format_chunk(
         title,
@@ -209,6 +224,7 @@ def train(
     freq: bool = False,
     te: bool = False,
 ) -> DeotteCvResult:
+    """Run Deotte CV, persist artifacts, optionally append EXPERIMENTS.md."""
     cv = run_cv(df, test, folds=folds, seed=seed, model_overrides=model_overrides, freq=freq, te=te)
     save_run(df, cv, out=out)
     if log:
@@ -227,6 +243,8 @@ def _predict_variant(
     variant: str,
     models: list,
 ) -> np.ndarray:
+    """Average fold probabilities for one variant (margin-aware for m2)."""
+
     v = DeotteVariant(variant)
     use_margin = v == DeotteVariant.BASE_MARGIN
     with_recipe = v == DeotteVariant.RECIPE_FEATURE
@@ -253,6 +271,8 @@ def _predict_variant(
 
 
 def predict_proba(df: pd.DataFrame, out: Path | None = None) -> np.ndarray:
+    """Load saved Deotte artifacts and average m1/m2/m3 test probabilities."""
+
     out = out or OUTPUTS
     fb = joblib.load(out / "feature_builder.joblib")
     preds = []

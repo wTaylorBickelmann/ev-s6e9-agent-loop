@@ -36,23 +36,31 @@ XGB_DEFAULTS: dict[str, Any] = {
 
 
 def lgbm_params(**overrides: Any) -> dict[str, Any]:
+    """LightGBM defaults with caller overrides."""
+
     p = dict(DEFAULTS)
     p.update(overrides)
     return p
 
 
 def make_model(seed: int = 42, **overrides: Any) -> lgb.LGBMClassifier:
+    """Construct an LGBMClassifier for binary AUC."""
+
     p = lgbm_params(random_state=seed, **overrides)
     return lgb.LGBMClassifier(**p)
 
 
 def xgb_params(**overrides: Any) -> dict[str, Any]:
+    """XGBoost defaults with caller overrides (Deotte variants)."""
+
     p = dict(XGB_DEFAULTS)
     p.update(overrides)
     return p
 
 
 def make_xgb_model(seed: int = 42, **overrides: Any) -> Any:
+    """Construct an XGBClassifier (hist, CPU) for the Deotte blend."""
+
     import xgboost as xgb
 
     p = xgb_params(random_state=seed, **overrides)
@@ -69,6 +77,8 @@ def short_params(p: dict[str, Any] | None = None) -> str:
 
 
 def short_xgb_params(p: dict[str, Any] | None = None) -> str:
+    """One-line XGB key params for EXPERIMENTS.md."""
+
     p = p or XGB_DEFAULTS
     return (
         f"n_estimators={p.get('n_estimators')} lr={p.get('learning_rate')} "

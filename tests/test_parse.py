@@ -1,3 +1,5 @@
+"""Planner marker/JSON parse, RESULT lines, and agy envelope helpers."""
+
 from __future__ import annotations
 
 import pytest

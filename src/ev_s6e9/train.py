@@ -22,6 +22,8 @@ from ev_s6e9.schema import ID_COL, TARGET
 
 @dataclass
 class CvResult:
+    """LightGBM CV: OOF, fold AUCs, models, and mean importances."""
+
     oof: np.ndarray
     fold_aucs: list[float]
     mean: float
@@ -39,6 +41,7 @@ def run_cv(
     early_stopping: int = 50,
     model_overrides: dict | None = None,
 ) -> CvResult:
+    """Stratified LightGBM CV with early stopping; fill OOF and importances."""
     x, y = split_xy(df)
     yv = y.to_numpy()
     oof = np.zeros(len(y), dtype=float)
@@ -69,6 +72,8 @@ def run_cv(
 
 
 def save_run(df: pd.DataFrame, cv: CvResult, out: Path | None = None) -> None:
+    """Write OOF, fold joblibs, feature_importance.csv, and cv.json."""
+
     out = out or OUTPUTS
     out.mkdir(parents=True, exist_ok=True)
     models = out / "models"
@@ -97,6 +102,8 @@ def log_experiment(
     note: str = "",
     path: Path | None = None,
 ) -> Path:
+    """Append a LightGBM chunk to EXPERIMENTS.md."""
+
     title = f"LightGBM {short_params(cv.params)}, raw+charging_total, {folds}-fold"
     chunk = format_chunk(
         title,
@@ -117,6 +124,7 @@ def train(
     out: Path | None = None,
     model_overrides: dict | None = None,
 ) -> CvResult:
+    """Run LightGBM CV, persist artifacts, optionally append EXPERIMENTS.md."""
     cv = run_cv(df, folds=folds, seed=seed, model_overrides=model_overrides)
     save_run(df, cv, out=out)
     if log:

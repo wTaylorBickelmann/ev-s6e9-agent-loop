@@ -1,3 +1,5 @@
+"""`python -m loop` CLI: run, plan-once, execute-once, show-whitelist."""
+
 from __future__ import annotations
 
 import argparse
@@ -10,6 +12,8 @@ from loop.orchestrator import Loop
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Parse argv, load Settings, and dispatch to a Loop method."""
+
     args = _parser().parse_args(argv)
     root = find_root(getattr(args, "root", None))
     config_path = Path(args.config).expanduser() if getattr(args, "config", None) else None
@@ -46,6 +50,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _add_common(parser: argparse.ArgumentParser) -> None:
+    """Shared --root / --config / --dry-run flags for every subcommand."""
+
     parser.add_argument("--root", help="Loop repo root (ledgers, prompts, config).")
     parser.add_argument("--config", help="Path to loop.yaml (default: <root>/config/loop.yaml).")
     parser.add_argument(
@@ -56,6 +62,8 @@ def _add_common(parser: argparse.ArgumentParser) -> None:
 
 
 def _parser() -> argparse.ArgumentParser:
+    """Build the argparse tree for `python -m loop`."""
+
     p = argparse.ArgumentParser(
         prog="python -m loop",
         description="Token-thrifty Kaggle plan → execute → record loop.",

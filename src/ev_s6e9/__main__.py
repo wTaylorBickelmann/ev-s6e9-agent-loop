@@ -10,6 +10,8 @@ from ev_s6e9.schema import COMPETITION
 
 
 def _parser() -> argparse.ArgumentParser:
+    """Subcommands: download, train, predict, submit, eda, build_site."""
+
     p = argparse.ArgumentParser(prog="python -m ev_s6e9")
     sub = p.add_subparsers(dest="cmd", required=True)
 
@@ -44,6 +46,8 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _need_train_csv(synth: bool):
+    """Load train.csv, or a tiny synth frame when `--synth` / file missing."""
+
     from ev_s6e9.data import load_train, synth as make_synth
 
     if synth:
@@ -59,6 +63,8 @@ def _need_train_csv(synth: bool):
 
 
 def main(argv: list[str] | None = None) -> None:
+    """Dispatch `python -m ev_s6e9 <cmd>` to the matching library entrypoint."""
+
     args = _parser().parse_args(argv)
 
     if args.cmd == "download":

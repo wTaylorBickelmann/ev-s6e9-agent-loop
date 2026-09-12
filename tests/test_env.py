@@ -1,3 +1,5 @@
+"""`${VAR:-default}` expansion used by loop.yaml."""
+
 from __future__ import annotations
 
 from loop.env import expand

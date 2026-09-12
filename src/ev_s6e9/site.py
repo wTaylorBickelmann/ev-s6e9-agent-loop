@@ -55,6 +55,8 @@ def frame_for_site(*, sample: bool = False) -> tuple[pd.DataFrame, str]:
 
 
 def _page(title: str, body: str) -> str:
+    """Wrap `body` in the shared gallery HTML chrome."""
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -88,10 +90,14 @@ def _page(title: str, body: str) -> str:
 
 
 def _img(rel: str, cap: str) -> str:
+    """One `<figure>` with a relative image and caption."""
+
     return f'<figure><img src="{html.escape(rel)}" alt="{html.escape(cap)}"><figcaption>{html.escape(cap)}</figcaption></figure>'
 
 
 def _table(df: pd.DataFrame, n: int = 8) -> str:
+    """HTML preview of the first `n` rows."""
+
     return df.head(n).to_html(index=False, escape=True)
 
 

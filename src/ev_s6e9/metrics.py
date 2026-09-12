@@ -7,13 +7,18 @@ from sklearn.metrics import roc_auc_score
 
 
 def auc(y, p) -> float:
+    """ROC AUC as a Python float."""
     return float(roc_auc_score(y, p))
 
 
 def mean_std(scores: list[float]) -> tuple[float, float]:
+    """Mean and population std of fold scores."""
+
     a = np.asarray(scores, dtype=float)
     return float(a.mean()), float(a.std(ddof=0))
 
 
 def fmt_cv(mean: float, std: float) -> str:
+    """`0.94552 ± 0.00012` for NOTES / EXPERIMENTS.md."""
+
     return f"{mean:.5f} ± {std:.5f}"
