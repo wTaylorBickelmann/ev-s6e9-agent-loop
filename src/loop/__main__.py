@@ -1,4 +1,4 @@
-"""CLI entry: `python -m loop` (run / plan-once / execute-once / show-whitelist)."""
+"""CLI entry: `python -m loop` (run, plan/execute-once, whitelist, submit-if-improved)."""
 
 from loop.cli import main
 

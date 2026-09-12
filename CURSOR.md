@@ -59,6 +59,10 @@ Do not paste fold arrays or traces into them.
 - CV is ground truth. Record LB only after a real submit.
 - One change per iteration: copy last **keep** (`exps/exp0010/` at seed) → `exps/expNNNN/` → edit the copy.
 - Train with `python scripts/run_exp.py expNNNN` (uses `config.json` → `python -m ev_s6e9 train`).
+- Submit / commit only on a CV personal best: `python scripts/submit_if_improved.py expNNNN`
+  (or `python -m loop submit-if-improved expNNNN`). `--dry-run` prints keep/kill without
+  Kaggle or git. `--gate lb` compares public LB after submit. Never stages `oof.csv`,
+  data CSVs, joblib, `.env`, or secrets.
 - Keep `seed` / 5-fold stratified split unless STRATEGY says otherwise. Metric = ROC AUC.
 - Write OOF / models under `outputs/` or the exp folder. **Do not commit** `oof.csv`, `*.joblib`, or Kaggle CSVs.
 - To regenerate exp0010 OOF: `python scripts/run_exp.py exp0010` after `python -m ev_s6e9 download`.
