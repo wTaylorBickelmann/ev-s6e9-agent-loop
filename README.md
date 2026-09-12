@@ -113,11 +113,13 @@ python -m loop show-whitelist
 
 1. Python 3.11+, [Antigravity CLI](https://antigravity.google/docs/cli/headless/) `agy`,
    [Qwen Code](https://qwenlm.github.io/qwen-code-docs/) `qwen`, and Ollama (or vLLM).
-2. Pull a DeepSeek planner model and a Qwen **~27B** executor model:
+2. Serve DeepSeek with the **llama-server agent harness** and have a Qwen **~27B** executor ready:
 
    ```bash
-   ollama pull deepseek-r1:32b    # or your local DeepSeek tag
-   ollama pull qwen3.6:27b        # or qwen2.5-coder:32b / …
+   # Planner fallback — V4-Flash Q3 GGUF + built-in tools (--agent)
+   bash scripts/serve_deepseek_harness.sh
+   # Executor model (Ollama)
+   ollama pull qwen3.8:27b-q4_K_M   # or your local Qwen ~27B tag
    ```
 
 3. Authenticate `agy` once (`agy models` should list a Gemini Flash-class slug).
@@ -150,8 +152,23 @@ python -m loop show-whitelist
 `exps/exp0010/` → `exps/expNNNN/`, trains via `scripts/run_exp.py`, and appends one
 `ledger/RESULTS.md` row.
 
-Suggested memory split: do **not** keep both 32B DeepSeek and 27B Qwen resident if
-unified memory is tight. They run in sequence (plan, then execute).
+Suggested memory split: do **not** keep both DeepSeek (~120GB Q3) and 27B Qwen resident
+at once. They run in sequence (plan, then execute). Bounce backends **without** restarting
+the loop process:
+
+```bash
+./scripts/restart_agent.sh status
+./scripts/restart_agent.sh swap-to-executor    # DeepSeek down, Qwen up
+./scripts/restart_agent.sh swap-to-planner     # Qwen down; DeepSeek stays cold (agy primary)
+./scripts/restart_agent.sh deepseek up|down|restart
+./scripts/restart_agent.sh qwen up|down|restart
+./scripts/restart_agent.sh executor bounce     # kill stuck qwen CLI only; loop stays up
+```
+
+`executor bounce` does **not** re-run the same strategy — the in-flight `execute_once`
+fails closed and the orchestrator continues. Retry manually with
+`python -m loop execute-once` if needed. DeepSeek is fallback-only; leave it down while
+`agy` is healthy.
 
 Useful commands:
 
@@ -186,6 +203,10 @@ Copied from the shell — prefer these over the old Fable/Cursor planner path:
 3. **Ledgers stay tabular.** One strategy line, one result row.
 4. **Byte caps.** Default 24 KiB/file and 80 KiB total.
 5. **No Cursor for the long loop.** `python -m loop run` on the Mac Studio.
+6. **Traces live outside the git tree.** `LOOP_LOGS_DIR` (default
+   `~/.cache/ev-s6e9-agent-loop/logs`) so Qwen Code cannot bulk-ingest run logs from cwd.
+   In-repo `logs/` is only a pointer (`logs/README.md`). Add `.qwenignore` patterns for
+   `data/`, `*.csv`, `oof`, etc.
 
 Always-inlined: ledgers, `CURSOR.md`, `LEARNINGS.md`, `STRATEGY.md`.
 Optional: `src/ev_s6e9/{features,deotte,model,train}.py`, exp0010 NOTES/config,

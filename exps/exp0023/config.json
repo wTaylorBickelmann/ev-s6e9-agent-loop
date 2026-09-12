@@ -1,0 +1,27 @@
+{
+  "id": "exp0023",
+  "title": "deotte-3seed-blend",
+  "hypothesis": "Averaging predictions across three distinct random seeds (42, 43, 44) reduces tree variance on the exp0010 floor (--freq --te), lifting CV AUC over 0.94552.",
+  "parent": "exp0010",
+  "strategy": "deotte",
+  "train_args": [
+    "--strategy",
+    "deotte",
+    "--freq",
+    "--te",
+    "--seeds",
+    "42,43,44",
+    "--note",
+    "exp0023: 3-seed Deotte blend (42,43,44) on exp0010 floor, reverted recipe"
+  ],
+  "predict_args": [
+    "--strategy",
+    "deotte"
+  ],
+  "submit_message": "exp0023 deotte 3-seed blend",
+  "folds": 5,
+  "seed": 42,
+  "status": "keep",
+  "cv": "0.94556 \u00b1 0.00062",
+  "lb": 0.94556
+}

@@ -123,13 +123,16 @@ class Loop:
         )
 
     def _executor_prompt(self, plan: Plan) -> str:
-        """Fill prompts/executor.md with roots, id, and the current spec."""
+        """Fill prompts/executor.md with roots, id, logs dir, and the current spec."""
 
         template = self.settings.executor_prompt.read_text(encoding="utf-8")
         spec = plan.spec or ledger.current_spec(self.current)
+        logs_dir = self.settings.logs_dir
+        logs_dir.mkdir(parents=True, exist_ok=True)
         return template.format(
             loop_root=self.settings.root,
             competition_root=competition_root_label(self.settings),
+            logs_dir=logs_dir,
             strategy_id=plan.strategy_id,
             metric=self.settings.metric,
             strategy_spec=spec,

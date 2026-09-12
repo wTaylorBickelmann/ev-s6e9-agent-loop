@@ -1,0 +1,43 @@
+{
+  "id": "exp0023",
+  "cv_mean": 0.94556,
+  "cv_std": 0.00062,
+  "cv": "0.94556 \u00b1 0.00062",
+  "fold_aucs": [
+    0.94465,
+    0.94528,
+    0.9465,
+    0.94588,
+    0.9455
+  ],
+  "models": {
+    "m1": {
+      "mean": 0.94539,
+      "std": 0.0006
+    },
+    "m2": {
+      "mean": 0.94545,
+      "std": 0.00063
+    },
+    "m3": {
+      "mean": 0.94537,
+      "std": 0.00065
+    }
+  },
+  "strategy": "deotte",
+  "params": {
+    "freq": true,
+    "te": true,
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "folds": 5
+  },
+  "status": "keep",
+  "parent": "exp0010",
+  "note": "3-seed Deotte blend on exp0010 floor",
+  "recorded_at": "2026-09-12T17:29:02",
+  "lb": 0.94556
+}

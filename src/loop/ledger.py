@@ -216,7 +216,7 @@ Append-only catalog. One row per planned idea. Never paste logs.
 
 _RESULTS_HEADER = """# Results
 
-One row per executed run. Metrics only. Full traces live at `logs/<id>.log`.
+One row per executed run. Metrics only. Full traces live under LOOP_LOGS_DIR (`<id>.log`).
 
 | id | status | cv | lb | notes |
 |----|--------|----|----|-------|

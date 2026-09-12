@@ -28,6 +28,7 @@ def _parser() -> argparse.ArgumentParser:
     t.add_argument("--synth", action="store_true", help="train on tiny synthetic data (no kaggle files)")
     t.add_argument("--freq", action="store_true", help="add value-count features (Annual_Income_USD, Daily_Commute_km)")
     t.add_argument("--te", action="store_true", help="fold-safe target encoding of Annual_Income_USD")
+    t.add_argument("--seeds", default=None, help="comma-separated model seeds for multi-seed blend (e.g. 42,43,44)")
 
     pr = sub.add_parser("predict", help="average fold models → outputs/submission.csv")
     pr.add_argument("--strategy", choices=["lgbm", "deotte"], default=None)
@@ -93,11 +94,15 @@ def main(argv: list[str] | None = None) -> None:
             from ev_s6e9.paths import TEST_CSV
 
             test_df = load_test() if TEST_CSV.exists() else None
+            seeds_list = None
+            if args.seeds:
+                seeds_list = [int(s) for s in args.seeds.split(",")]
             train_deotte(
                 df,
                 test_df,
                 folds=args.folds,
                 seed=args.seed,
+                seeds=seeds_list,
                 log=not args.no_log and not args.synth,
                 note=args.note,
                 experiments_path=EXPERIMENTS_MD,

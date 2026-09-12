@@ -94,3 +94,18 @@ Template:
 - LB: —
 - Takeaway: exp0016: +orig_income_te (mean original-dataset label per exact Annual_Income_USD) on top of --freq --te
 
+### 2026-09-12 — Deotte XGB 3-model blend (n_estimators=3000 lr=0.05 max_depth=6), 5-fold
+- CV: 0.94549 ± 0.00063
+- LB: —
+- Takeaway: exp0022: recipe_score +1.5*Home_Charging_Possible, recipe_logit offset 7.0 (on top of --freq --te)
+
+### 2026-09-12 — Deotte XGB 3-model blend (n_estimators=3000 lr=0.05 max_depth=6), 5-fold
+- CV: 0.94556 ± 0.00062
+- LB: —
+- Takeaway: exp0023: 3-seed Deotte blend (42,43,44) on exp0010 floor, reverted recipe
+
+### 2026-09-12 — exp0023 submit
+- CV: 0.94556
+- LB: 0.94556
+- Takeaway: exp0023 submitted CV=0.94556 LB=0.94556
+

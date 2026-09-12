@@ -8,8 +8,11 @@ from loop.ledger import next_strategy_id
 from loop.orchestrator import Loop
 
 
-def test_seeded_next_id_is_after_exp0018(repo_root):
-    assert next_strategy_id(repo_root / "ledger" / "STRATEGIES.md") == "s019"
+def test_seeded_next_id_advances_past_seeded_rows(repo_root):
+    """Live STRATEGIES grows under the overnight loop; only require monotonic next id."""
+    nxt = next_strategy_id(repo_root / "ledger" / "STRATEGIES.md")
+    assert nxt.startswith("s")
+    assert int(nxt[1:]) >= 19
 
 
 def test_repo_whitelist_includes_floor_and_denies_dumps(repo_root):

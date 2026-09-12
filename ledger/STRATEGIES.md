@@ -16,3 +16,8 @@ Seeded from ev-purchase-kaggle @ a4c75ae (exp0010 keep). Next id is after the la
 | s015 | 2026-09-12 | fe | exp0015 TE of (income, commute) pair key (killed vs exp0010) |
 | s016 | 2026-09-12 | fe | exp0016 orig-data income target mean as feature (killed vs exp0010) |
 | s018 | 2026-09-12 | fe | exp0018 Cursor-Fable planner fail (log only; do not retry that path) |
+| s019 | 2026-09-12 | stack | 3-seed Deotte blend (seeds 42, 43, 44) on exp0010 floor |
+| s020 | 2026-09-12 | stack | 3-seed Deotte blend (seeds 42, 43, 44) on exp0010 floor |
+| s021 | 2026-09-12 | eda | EDA recipe update: add Home_Charging_Possible (+1.5) to recipe_score and base_margin on exp0010 floor |
+| s022 | 2026-09-12 | eda | EDA recipe update: add Home_Charging_Possible (+1.5) to recipe_score and base_margin on exp0010 floor |
+| s023 | 2026-09-12 | stack | 3-seed Deotte blend (seeds 42, 43, 44) on exp0010 floor with reverted baseline recipe |

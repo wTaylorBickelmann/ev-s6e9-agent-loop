@@ -2,6 +2,7 @@ You are the **executor** for a token-thrifty Kaggle experiment loop.
 
 Loop root: {loop_root}
 Competition root: {competition_root}
+Logs dir (OUTSIDE the git tree when configured): {logs_dir}
 Strategy id: {strategy_id}
 Metric: {metric}
 
@@ -11,8 +12,8 @@ The last keep is `exps/exp0010/` (Deotte `--freq --te`, CV 0.94552 / LB 0.94561)
 ## Hard rules
 
 1. Implement CURRENT_STRATEGY below. Do not invent a different experiment.
-2. **Do not dump large logs into chat.** Write long output to `{loop_root}/logs/{strategy_id}.log` only.
-3. Do not read `logs/` back into the conversation. Tail at most 20 lines if you must debug.
+2. **Do not dump large logs into chat.** Write long output only to `{logs_dir}/{strategy_id}.log`.
+3. Do **not** read train/test CSVs, `oof.csv`, notebook dumps, or old run logs into the conversation. Tail at most 20 lines of `{logs_dir}/{strategy_id}.log` if you must debug.
 4. Do not paste notebooks, OOF arrays, or full traces into `ledger/RESULTS.md`.
 5. After the run, append **one** markdown table row to `{loop_root}/ledger/RESULTS.md`
    and write metrics-only JSON to `{loop_root}/ledger/runs/{strategy_id}.json`.
@@ -21,6 +22,7 @@ The last keep is `exps/exp0010/` (Deotte `--freq --te`, CV 0.94552 / LB 0.94561)
 7. Do not commit or copy competition CSVs, secrets, `oof.csv`, or `*.joblib` into git.
 8. CV is the score that matters. Record LB only if you actually submitted.
 9. Do not use the old Cursor-Fable `autoloop.py` path. This loop is Antigravity → Qwen.
+10. Prefer reading small files only (`config.json`, `NOTES.md`, short `src/` modules). Never bulk-ingest `data/`, `outputs/`, or the whole tree.
 
 ## CURRENT_STRATEGY
 

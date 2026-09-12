@@ -105,10 +105,17 @@ def run_variant_cv(
     *,
     folds: int = 5,
     seed: int = 42,
+    model_seed: int | None = None,
     model_overrides: dict | None = None,
 ) -> VariantCv:
-    """Stratified CV for a single Deotte variant."""
+    """Stratified CV for a single Deotte variant.
 
+    `seed` controls the fold split; `model_seed` (defaults to `seed`) controls
+    XGB random_state so multi-seed blends can reuse identical folds.
+    """
+
+    if model_seed is None:
+        model_seed = seed
     y = encode_target(df[TARGET]).to_numpy()
     oof = np.zeros(len(y), dtype=float)
     skf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed)
@@ -122,7 +129,7 @@ def run_variant_cv(
             df.iloc[va],
             y[tr],
             y[va],
-            seed=seed + i,
+            seed=model_seed + i,
             overrides=overrides,
         )
         oof[va] = p
@@ -159,6 +166,52 @@ def run_cv(
     mean, std = mean_std(blend_scores)
     params = {**XGB_DEFAULTS, **(model_overrides or {})}
     return DeotteCvResult(blend_oof, blend_scores, mean, std, variants, fb, params)
+
+
+def run_cv_multi_seed(
+    train: pd.DataFrame,
+    test: pd.DataFrame | None = None,
+    *,
+    folds: int = 5,
+    fold_seed: int = 42,
+    seeds: list[int] | None = None,
+    model_overrides: dict | None = None,
+    freq: bool = False,
+    te: bool = False,
+) -> DeotteCvResult:
+    """Run Deotte 3-variant CV for each seed; average OOFs; evaluate on fixed folds."""
+    if seeds is None:
+        seeds = [fold_seed]
+    fb = FeatureBuilder(freq=freq, te=te).fit(train, test)
+    y = encode_target(train[TARGET]).to_numpy()
+    skf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=fold_seed)
+
+    seed_oofs: list[np.ndarray] = []
+    all_variants: dict[str, dict[str, VariantCv]] = {}
+    for s in seeds:
+        variants: dict[str, VariantCv] = {}
+        oofs = []
+        for v in DeotteVariant:
+            vc = run_variant_cv(
+                train, fb, v,
+                folds=folds, seed=fold_seed, model_seed=s,
+                model_overrides=model_overrides,
+            )
+            variants[v.value] = vc
+            oofs.append(vc.oof)
+        seed_oofs.append(np.mean(oofs, axis=0))
+        all_variants[f"seed_{s}"] = variants
+
+    blend_oof = np.mean(seed_oofs, axis=0)
+    blend_scores = []
+    for tr, va in skf.split(train, y):
+        blend_scores.append(auc(y[va], blend_oof[va]))
+    mean, std = mean_std(blend_scores)
+    params = {**XGB_DEFAULTS, **(model_overrides or {}), "seeds": seeds}
+
+    # Store first seed's variants for save_run compatibility
+    first_variants = all_variants.get(f"seed_{seeds[0]}", {})
+    return DeotteCvResult(blend_oof, blend_scores, mean, std, first_variants, fb, params)
 
 
 def save_run(df: pd.DataFrame, cv: DeotteCvResult, out: Path | None = None) -> None:
@@ -216,6 +269,7 @@ def train(
     *,
     folds: int = 5,
     seed: int = 42,
+    seeds: list[int] | None = None,
     log: bool = True,
     note: str = "",
     experiments_path: Path | None = None,
@@ -225,7 +279,13 @@ def train(
     te: bool = False,
 ) -> DeotteCvResult:
     """Run Deotte CV, persist artifacts, optionally append EXPERIMENTS.md."""
-    cv = run_cv(df, test, folds=folds, seed=seed, model_overrides=model_overrides, freq=freq, te=te)
+    if seeds:
+        cv = run_cv_multi_seed(
+            df, test, folds=folds, fold_seed=seed, seeds=seeds,
+            model_overrides=model_overrides, freq=freq, te=te,
+        )
+    else:
+        cv = run_cv(df, test, folds=folds, seed=seed, model_overrides=model_overrides, freq=freq, te=te)
     save_run(df, cv, out=out)
     if log:
         log_experiment(cv, folds=folds, note=note, path=experiments_path)

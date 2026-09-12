@@ -23,23 +23,23 @@ planner:
     bin: ${AGY_BIN:-agy}
     # Prefer the left-column slug from `agy models` (e.g. gemini-3.5-flash-high).
     # Display names such as "Gemini 3.5 Flash (High)" also work on some versions.
-    model: ${AGY_MODEL:-gemini-3.5-flash-high}
+    model: ${AGY_MODEL:-gemini-3.8-flash-high}
     effort: ${AGY_EFFORT:-high}
     output_format: json
     print_timeout: 10m
     extra_args: []
   deepseek:
-    base_url: ${DEEPSEEK_BASE_URL:-http://127.0.0.1:11434/v1}
-    model: ${DEEPSEEK_MODEL:-deepseek-r1:32b}
-    api_key: ${DEEPSEEK_API_KEY:-ollama}
-    timeout_s: 180
+    base_url: ${DEEPSEEK_BASE_URL:-http://127.0.0.1:8080/v1}
+    model: ${DEEPSEEK_MODEL:-deepseek-v4-flash-q3}
+    api_key: ${DEEPSEEK_API_KEY:-local}
+    timeout_s: 600
 
 executor:
   primary: qwen
   prompt: prompts/executor.md
   qwen:
     bin: ${QWEN_BIN:-qwen}
-    model: ${OPENAI_MODEL:-qwen3.6:27b}
+    model: ${OPENAI_MODEL:-qwen3.8:27b-q4_K_M}
     base_url: ${OPENAI_BASE_URL:-http://127.0.0.1:11434/v1}
     api_key: ${OPENAI_API_KEY:-ollama}
     auth_type: ${QWEN_AUTH_TYPE:-openai}
@@ -50,7 +50,9 @@ executor:
 
 paths:
   ledger_dir: ledger
-  logs_dir: logs
+  # Prefer outside-repo traces so Qwen Code cannot bulk-ingest them from cwd.
+  # Set LOOP_LOGS_DIR in .env (default below expands ~). Relative values stay under root.
+  logs_dir: ${LOOP_LOGS_DIR:-logs}
   runs_dir: ledger/runs
   planner_reads: config/planner_reads.yaml
 

@@ -61,44 +61,55 @@ class Settings:
 
         return bool((self.raw.get("competition") or {}).get("higher_is_better", True))
 
+    def resolve_path(self, value: str | None, *, default: str) -> Path:
+        """Resolve a config path: expand `~`, keep absolutes, else under `root`."""
+
+        raw = str(value if value is not None and str(value).strip() else default).strip()
+        path = Path(raw).expanduser()
+        if not path.is_absolute():
+            path = self.root / path
+        return path.resolve()
+
     @property
     def ledger_dir(self) -> Path:
         """Directory of STRATEGIES / RESULTS / CURRENT_STRATEGY."""
 
-        return self.root / (self.raw.get("paths") or {}).get("ledger_dir", "ledger")
+        return self.resolve_path((self.raw.get("paths") or {}).get("ledger_dir"), default="ledger")
 
     @property
     def logs_dir(self) -> Path:
-        """Long traces (`logs/<id>.log`); never planner-visible."""
+        """Long traces (`<id>.log`). Prefer an outside-repo path via LOOP_LOGS_DIR."""
 
-        return self.root / (self.raw.get("paths") or {}).get("logs_dir", "logs")
+        return self.resolve_path((self.raw.get("paths") or {}).get("logs_dir"), default="logs")
 
     @property
     def runs_dir(self) -> Path:
         """Metrics-only JSON per run (`ledger/runs/<id>.json`)."""
 
-        return self.root / (self.raw.get("paths") or {}).get("runs_dir", "ledger/runs")
+        return self.resolve_path(
+            (self.raw.get("paths") or {}).get("runs_dir"), default="ledger/runs"
+        )
 
     @property
     def planner_reads_path(self) -> Path:
         """Whitelist YAML that decides what the planner may see."""
 
         rel = (self.raw.get("paths") or {}).get("planner_reads", "config/planner_reads.yaml")
-        return self.root / rel
+        return self.resolve_path(rel, default="config/planner_reads.yaml")
 
     @property
     def planner_prompt(self) -> Path:
         """Markdown template filled before each plan call."""
 
         rel = (self.raw.get("planner") or {}).get("prompt", "prompts/planner.md")
-        return self.root / rel
+        return self.resolve_path(rel, default="prompts/planner.md")
 
     @property
     def executor_prompt(self) -> Path:
         """Markdown template filled before each execute call."""
 
         rel = (self.raw.get("executor") or {}).get("prompt", "prompts/executor.md")
-        return self.root / rel
+        return self.resolve_path(rel, default="prompts/executor.md")
 
     @property
     def max_iterations(self) -> int:
