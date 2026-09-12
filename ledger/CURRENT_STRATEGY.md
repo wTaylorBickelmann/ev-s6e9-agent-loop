@@ -31,20 +31,9 @@ pre-TE blend. Those stay in LEARNINGS.
 - Runtime: three full Deotte CVs — expect tens of minutes on CPU, not hours. Write long
   output only to `logs/s019.log`.
 
-`exps/exp0019/config.json` should look like exp0010 plus seeds, for example:
-
-```json
-{
-  "id": "exp0019",
-  "title": "deotte-te-income-3seed",
-  "parent": "exp0010",
-  "strategy": "deotte",
-  "train_args": ["--strategy", "deotte", "--freq", "--te"],
-  "seeds": [42, 43, 44],
-  "folds": 5,
-  "seed": 42
-}
-```
+`exps/exp0019/config.json` should look like exp0010 plus a `seeds` list
+`[42, 43, 44]`, `parent` exp0010, title `deotte-te-income-3seed`, same
+`train_args` (`--strategy deotte --freq --te`), folds 5.
 
 Train via `python scripts/run_exp.py exp0019` after `python -m ev_s6e9 download`
 (if `data/raw/train.csv` is missing). Do not commit `oof.csv` or fold models.

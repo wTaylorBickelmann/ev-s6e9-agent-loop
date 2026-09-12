@@ -1,7 +1,7 @@
 # Strategies
 
 Append-only catalog. One row per planned idea. Never paste logs.
-Seeded from ev-purchase-kaggle @ a4c75ae (exp0010 keep). Next planner id: s019.
+Seeded from ev-purchase-kaggle @ a4c75ae (exp0010 keep). Next id is after the last table row.
 
 | id | date | phase | one-liner |
 |----|------|-------|-----------|
