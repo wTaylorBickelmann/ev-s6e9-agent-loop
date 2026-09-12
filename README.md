@@ -161,7 +161,18 @@ python -m loop execute-once           # run the current spec
 python -m loop run --iterations 5
 python -m loop run --iterations 1 --dry-run
 python -m ev_s6e9 train --strategy deotte --freq --te
+python scripts/submit_if_improved.py exp0019 --dry-run   # gate on CV; no submit/commit
+python -m loop submit-if-improved exp0019               # submit + commit only on CV best
 ```
+
+Submit only on a **CV personal best** (repo convention: CV is ground truth). The helper
+reads `exps/<exp>/metrics.json`, compares to the best keep (keep `metrics.json`, RESULTS
+`ok` rows, or the exp0010 floor **0.94552**), and on a lift of more than `--eps` (default
+`1e-5`) runs predict if needed, `python -m ev_s6e9 submit`, polls public LB with a timeout,
+appends LB into RESULTS / EXPERIMENTS, then `git add`s only allow-listed paths (exp
+config/NOTES/metrics, ledgers, `src/` — never data CSVs, `oof.csv`, joblib, `.env`).
+`--gate lb` compares public LB after submit instead. `--push` is off by default.
+A kill prints `kill` and exits `1` with no submit and no commit.
 
 Stop conditions live in `config/loop.yaml`: `max_iterations`, `target_cv`,
 `max_consecutive_failures`.
@@ -188,8 +199,9 @@ Flow: **planner → ledgers → executor → exps/train → RESULTS** (diagram a
 src/loop/            Antigravity / DeepSeek / Qwen adapters + orchestrator
 src/ev_s6e9/         vendored S6E9 library (features, deotte, train, predict, …)
 exps/exp0010/        keep floor (config / NOTES / metrics; regenerate OOF locally)
-scripts/run_exp.py   train one exp folder
-scripts/run-loop.sh  python -m loop run
+scripts/run_exp.py             train one exp folder
+scripts/submit_if_improved.py  submit + commit only on a CV (or LB) personal best
+scripts/run-loop.sh            python -m loop run
 ledger/              compact STRATEGIES / RESULTS / CURRENT_STRATEGY
 config/loop.yaml     competition.root = .
 docs/architecture.txt

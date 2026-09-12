@@ -135,6 +135,34 @@ def append_result(path: Path, result: RunResult) -> None:
     path.write_text(text + line, encoding="utf-8")
 
 
+def update_result_lb(path: Path, strategy_id: str, lb: float) -> bool:
+    """Overwrite the LB cell on an existing RESULTS.md row. Return True if rewritten."""
+
+    if not path.is_file():
+        return False
+    lines = path.read_text(encoding="utf-8").splitlines()
+    out: list[str] = []
+    changed = False
+    for line in lines:
+        match = _ROW.match(line.strip())
+        if (
+            match
+            and match.group(1).strip() == strategy_id
+            and match.group(1).lower() != "id"
+            and match.group(2).strip().lower() not in {"status", "----", "---"}
+        ):
+            status = match.group(2).strip()
+            cv = match.group(3).strip()
+            notes = match.group(5).strip().strip("|").strip()
+            out.append(f"| {strategy_id} | {status} | {cv} | {_fmt(lb)} | {notes or '—'} |")
+            changed = True
+        else:
+            out.append(line)
+    if changed:
+        path.write_text("\n".join(out) + "\n", encoding="utf-8")
+    return changed
+
+
 def write_run_json(path: Path, result: RunResult) -> None:
     """Write metrics-only JSON under ledger/runs/ (never planner-visible)."""
 

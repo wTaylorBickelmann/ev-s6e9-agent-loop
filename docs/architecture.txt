@@ -60,4 +60,4 @@ Packages
 --------
 src/loop/      orchestrator, whitelist assembler, adapters, ledger I/O
 src/ev_s6e9/   features, Deotte/LightGBM train, predict, submit
-scripts/       run_exp.py (one exp folder), run-loop.sh
+scripts/       run_exp.py (one exp folder), submit_if_improved.py, run-loop.sh

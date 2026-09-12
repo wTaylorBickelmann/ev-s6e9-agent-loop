@@ -1,4 +1,4 @@
-"""`python -m loop` CLI: run, plan-once, execute-once, show-whitelist."""
+"""`python -m loop` CLI: run, plan-once, execute-once, show-whitelist, submit-if-improved."""
 
 from __future__ import annotations
 
@@ -15,6 +15,10 @@ def main(argv: list[str] | None = None) -> int:
     """Parse argv, load Settings, and dispatch to a Loop method."""
 
     args = _parser().parse_args(argv)
+    if args.cmd == "submit-if-improved":
+        from loop.submit_if_improved import run_from_args
+
+        return run_from_args(args)
     root = find_root(getattr(args, "root", None))
     config_path = Path(args.config).expanduser() if getattr(args, "config", None) else None
     if config_path and not config_path.is_absolute():
@@ -78,6 +82,13 @@ def _parser() -> argparse.ArgumentParser:
     _add_common(exe)
     show = sub.add_parser("show-whitelist", help="print files the planner would see")
     _add_common(show)
+    sif = sub.add_parser(
+        "submit-if-improved",
+        help="submit + commit only when CV (or LB) beats the best keep",
+    )
+    from loop.submit_if_improved import add_arguments
+
+    add_arguments(sif)
     return p
 
 
