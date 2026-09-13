@@ -5,7 +5,7 @@ This repo is a **filled instance** of [kaggle-agent-loop](https://github.com/wTa
 the loop harness lives in `src/loop/`; the competition library lives in `src/ev_s6e9/`.
 
 ```
-rewind exps/+src/ to CSV-best CV commit (any status; not KEEP-grep)
+rewind exps/+src/ev_s6e9/ to CSV-best CV commit (never src/loop/)
         |
         v
 planner (agy -> DeepSeek) --> CURRENT_STRATEGY + STRATEGIES.md

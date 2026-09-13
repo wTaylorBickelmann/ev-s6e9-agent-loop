@@ -1,14 +1,16 @@
-"""Git helpers: commit every run and rewind ``exps/``+``src/`` to the CSV-best CV.
+"""Git helpers: commit every run and rewind train/FE code to the CSV-best CV.
 
 Wired into ``Loop.run`` (live mode only; skipped when the root is not a git repo
 so dry-run tests on temp dirs stay green):
 
-1. ``rewind_to_best`` — at the START of every iteration, restore the code the
-   executor mutates (``exps/`` and ``src/``) to the commit on the CSV row with
-   the best CV (higher ROC AUC; any status, including ``fail`` with a valid CV).
-   Timeout-after-success and kill-vs-floor rows therefore become the next
-   baseline. ``ledger/`` (including ``runs_history.csv``), RESULTS, and the
-   root memory markdown are never rewound.
+1. ``rewind_to_best`` — at the START of every iteration, restore only the
+   training / feature-engineering / submission-build tree (``exps/`` and
+   ``src/ev_s6e9/``) to the commit on the CSV row with the best CV (higher ROC
+   AUC; any status, including ``fail`` with a valid CV). Timeout-after-success
+   and kill-vs-floor rows therefore become the next baseline. The AI loop
+   harness (``src/loop/``, prompts, ``config/loop.yaml``), ``ledger/``
+   (including ``runs_history.csv``), RESULTS, and root memory markdown are
+   never rewound — they accumulate.
 
 2. ``commit_run`` — after ``record``, git-commit every allow-listed changed path
    (same deny-list as submit-if-improved) with ``loop: RUN <id> status=… cv=…``.
@@ -27,8 +29,8 @@ from pathlib import Path
 from loop.history import best_row, history_path, read_rows
 from loop.submit_if_improved import stage_allowed
 
-# Paths the executor may mutate. ledger/ and root memory markdown stay put.
-_REWIND_PATHS = ("exps", "src")
+# Train / FE / submission-build only. Never the loop harness or ledgers.
+_REWIND_PATHS = ("exps", "src/ev_s6e9")
 
 
 @dataclass(frozen=True)
@@ -113,8 +115,9 @@ def rewind_to_best(
     """Reset ``paths`` to the CSV-best CV commit. Returns restored paths or None.
 
     No-op when the root is not a git repo or there is no baseline yet. Restores
-    only ``exps/`` and ``src/`` so the next run starts from the best scored tree
-    (even if that run was ``status=fail``) while ledgers keep accumulating.
+    only ``exps/`` and ``src/ev_s6e9/`` so the next train starts from the best
+    scored tree (even if that run was ``status=fail``). ``src/loop/`` and
+    ledgers keep accumulating.
 
     ``git checkout <baseline> -- <path>`` does not delete worktree files absent
     from the baseline, so leftover exp dirs from a failed run are unlinked.

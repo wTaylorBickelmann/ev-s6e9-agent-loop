@@ -5,12 +5,12 @@ One iteration: rewind-from-CSV-best → plan → execute/train → RESULTS+CSV
 → always commit → maybe submit if best → next iter.
 The planner may read only config/planner_reads.yaml (byte-capped).
 logs/, oof.csv, and competition CSVs are never inlined.
-ledger/ (including runs_history.csv) is never rewound.
+src/loop/, prompts, config, and ledger/ (including runs_history.csv) are never rewound.
 
 +-----------------------------------------------+
 | REWIND                                        |
 | best CV row in ledger/runs_history.csv        |
-| git checkout <commit> -- exps/ src/           |
+| git checkout <commit> -- exps/ src/ev_s6e9/   |
 +----------------------+------------------------+
                        |
                        v

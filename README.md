@@ -23,8 +23,8 @@ then the next plan reads those ledgers. The planner sees only `config/planner_re
 | REWIND                                        |
 | read ledger/runs_history.csv                  |
 | pick row with best CV (any status; skip null) |
-| git checkout <that SHA> -- exps/ src/         |
-| ledger/ + RESULTS + CSV are NOT restored      |
+| git checkout <that SHA> -- exps/ src/ev_s6e9/ |
+| src/loop, prompts, config, ledger stay put    |
 +----------------------+------------------------+
                        |
                        v
@@ -174,7 +174,7 @@ python -m loop show-whitelist
    ```
 
 `competition.root` is **this repo** (`.` / `COMPETITION_ROOT=.`). Each iteration
-rewinds `exps/`+`src/` to the CSV-best CV commit, the executor trains via
+rewinds `exps/`+`src/ev_s6e9/` to the CSV-best CV commit (not `src/loop/`), the executor trains via
 `scripts/run_exp.py`, then the loop appends RESULTS + `runs_history.csv` and commits.
 
 Suggested memory split: do **not** keep both DeepSeek (~120GB Q3) and 27B Qwen resident

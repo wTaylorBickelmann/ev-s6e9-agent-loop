@@ -1,11 +1,14 @@
 """Regression tests for loop.gitops + history: CSV-best rewind and always-commit.
 
-These build a real temp git repo so we can exercise `git checkout <baseline> -- exps`
-and `git commit` end to end without touching the live instance.
+These build a real temp git repo so we can exercise
+`git checkout <baseline> -- exps src/ev_s6e9` and `git commit` end to end
+without touching the live instance. Commits set a local user identity so they
+succeed on GitHub Actions (no global `user.name` / `user.email`).
 """
 
 from __future__ import annotations
 
+import re
 import subprocess
 
 import pytest
@@ -26,6 +29,9 @@ from loop.history import (
     read_rows,
 )
 
+_SHA = re.compile(r"^[0-9a-f]{7,}$")
+_RESTORED = ["exps", "src/ev_s6e9"]
+
 
 def _git(root, *args):
     """Run a git command in ``root`` and return the CompletedProcess."""
@@ -35,22 +41,51 @@ def _git(root, *args):
     )
 
 
+def _init_git(root):
+    """``git init`` plus a local identity so commits work on Actions (no global user)."""
+
+    proc = _git(root, "init", "-q")
+    assert proc.returncode == 0, proc.stderr
+    for key, value in (("user.email", "test@example.com"), ("user.name", "test")):
+        cfg = _git(root, "config", key, value)
+        assert cfg.returncode == 0, cfg.stderr
+
+
+def _head_sha(root) -> str:
+    """``git rev-parse --verify HEAD``; must look like a hex SHA (not the literal HEAD)."""
+
+    proc = _git(root, "rev-parse", "--verify", "HEAD")
+    assert proc.returncode == 0, proc.stderr or proc.stdout
+    sha = (proc.stdout or "").strip()
+    assert _SHA.fullmatch(sha), sha
+    return sha
+
+
+def _commit(root, message: str) -> str:
+    """Stage everything, commit, and return the new HEAD SHA. Fail if git refuses."""
+
+    add = _git(root, "add", "-A")
+    assert add.returncode == 0, add.stderr
+    proc = _git(root, "commit", "-q", "-m", message)
+    assert proc.returncode == 0, proc.stderr or proc.stdout
+    return _head_sha(root)
+
+
 @pytest.fixture
 def gitroot(tmp_path):
     """A real git repo with a KEEP baseline, a later broken run, and a CSV row."""
 
     root = tmp_path / "repo"
     root.mkdir()
-    for d in ("exps", "exps/exp0010", "src", "ledger", "ledger/runs"):
+    for d in ("exps", "exps/exp0010", "src/ev_s6e9", "src/loop", "ledger", "ledger/runs"):
         (root / d).mkdir(parents=True, exist_ok=True)
     (root / "ledger" / "RESULTS.md").write_text("# Results\n", encoding="utf-8")
     (root / "exps" / "exp0010" / "config.json").write_text('{"floor": true}', encoding="utf-8")
-    (root / "src" / "model.py").write_text("BEST_CODE\n", encoding="utf-8")
+    (root / "src" / "ev_s6e9" / "model.py").write_text("BEST_CODE\n", encoding="utf-8")
+    (root / "src" / "loop" / "harness.py").write_text("LOOP_V1\n", encoding="utf-8")
 
-    _git(root, "init", "-q")
-    _git(root, "add", "-A")
-    _git(root, "commit", "-q", "-m", "loop: KEEP exp0010 CV=0.94552")
-    sha = _git(root, "rev-parse", "HEAD").stdout.strip()
+    _init_git(root)
+    sha = _commit(root, "loop: KEEP exp0010 CV=0.94552")
     append_row(
         history_path(root),
         HistoryRow(
@@ -65,12 +100,12 @@ def gitroot(tmp_path):
 
     (root / "exps" / "exp0042").mkdir()
     (root / "exps" / "exp0042" / "config.json").write_text('{"broken": true}', encoding="utf-8")
-    (root / "src" / "model.py").write_text("BROKEN_CODE\n", encoding="utf-8")
+    (root / "src" / "ev_s6e9" / "model.py").write_text("BROKEN_CODE\n", encoding="utf-8")
+    (root / "src" / "loop" / "harness.py").write_text("LOOP_V2\n", encoding="utf-8")
     (root / "ledger" / "RESULTS.md").write_text(
         "# Results\n| s042 | fail |\n", encoding="utf-8"
     )
-    _git(root, "add", "-A")
-    _git(root, "commit", "-q", "-m", "loop: RUN s042 status=fail cv=—")
+    _commit(root, "loop: RUN s042 status=fail cv=—")
 
     return root, sha
 
@@ -101,23 +136,23 @@ def test_best_baseline_falls_back_to_keep_grep(tmp_path):
     root.mkdir()
     (root / "src").mkdir()
     (root / "src" / "a.py").write_text("x\n", encoding="utf-8")
-    _git(root, "init", "-q")
-    _git(root, "add", "-A")
-    _git(root, "commit", "-q", "-m", "loop: KEEP exp0010 CV=0.94552")
-    sha = _git(root, "rev-parse", "HEAD").stdout.strip()
+    _init_git(root)
+    sha = _commit(root, "loop: KEEP exp0010 CV=0.94552")
     assert best_baseline_commit(root) == sha
 
 
 def test_rewind_restores_code_to_best_baseline(gitroot):
     root, sha = gitroot
-    assert "BROKEN_CODE" in (root / "src" / "model.py").read_text(encoding="utf-8")
+    assert "BROKEN_CODE" in (root / "src" / "ev_s6e9" / "model.py").read_text(encoding="utf-8")
     assert (root / "exps" / "exp0042").exists()
 
     restored = rewind_to_best(root)
 
-    assert restored == ["exps", "src"]
-    assert "BEST_CODE" in (root / "src" / "model.py").read_text(encoding="utf-8")
+    assert restored == _RESTORED
+    assert "BEST_CODE" in (root / "src" / "ev_s6e9" / "model.py").read_text(encoding="utf-8")
     assert not (root / "exps" / "exp0042" / "config.json").exists()
+    # Loop harness + ledger accumulate — they are not part of the rewind tree.
+    assert "LOOP_V2" in (root / "src" / "loop" / "harness.py").read_text(encoding="utf-8")
     assert "s042" in (root / "ledger" / "RESULTS.md").read_text(encoding="utf-8")
 
 
@@ -125,12 +160,11 @@ def test_rewind_uses_fail_row_when_it_has_best_cv(gitroot):
     """A committed ``status=fail`` with a better CV is the rewind baseline."""
 
     root, keep_sha = gitroot
-    (root / "src" / "model.py").write_text("BETTER_CODE\n", encoding="utf-8")
+    (root / "src" / "ev_s6e9" / "model.py").write_text("BETTER_CODE\n", encoding="utf-8")
+    (root / "src" / "loop" / "harness.py").write_text("LOOP_V3\n", encoding="utf-8")
     (root / "exps" / "exp0041").mkdir()
     (root / "exps" / "exp0041" / "config.json").write_text('{"cv": 0.94575}', encoding="utf-8")
-    _git(root, "add", "-A")
-    _git(root, "commit", "-q", "-m", "loop: RUN s041 status=fail cv=0.94575")
-    fail_sha = _git(root, "rev-parse", "HEAD").stdout.strip()
+    fail_sha = _commit(root, "loop: RUN s041 status=fail cv=0.94575")
     assert fail_sha != keep_sha
     append_row(
         history_path(root),
@@ -143,14 +177,16 @@ def test_rewind_uses_fail_row_when_it_has_best_cv(gitroot):
             status="fail",
         ),
     )
-    (root / "src" / "model.py").write_text("DIRTY_CODE\n", encoding="utf-8")
+    (root / "src" / "ev_s6e9" / "model.py").write_text("DIRTY_CODE\n", encoding="utf-8")
+    (root / "src" / "loop" / "harness.py").write_text("LOOP_V4\n", encoding="utf-8")
 
     assert best_baseline_commit(root) == fail_sha
     restored = rewind_to_best(root)
-    assert restored == ["exps", "src"]
-    assert "BETTER_CODE" in (root / "src" / "model.py").read_text(encoding="utf-8")
+    assert restored == _RESTORED
+    assert "BETTER_CODE" in (root / "src" / "ev_s6e9" / "model.py").read_text(encoding="utf-8")
     assert (root / "exps" / "exp0041" / "config.json").exists()
-    # ledger / CSV stay on the dirty (latest) working tree
+    # harness + ledger / CSV stay on the dirty (latest) working tree
+    assert "LOOP_V4" in (root / "src" / "loop" / "harness.py").read_text(encoding="utf-8")
     assert read_rows(history_path(root))[-1].strategy_id == "s041"
     assert "s042" in (root / "ledger" / "RESULTS.md").read_text(encoding="utf-8")
 
@@ -208,7 +244,7 @@ def test_commit_run_commits_ok_and_fail(gitroot):
     assert len(msg.sha) >= 7
     log = _git(root, "log", "-1", "--format=%s").stdout.strip()
     assert log == msg.message
-    assert _git(root, "rev-parse", "HEAD").stdout.strip() == msg.sha
+    assert _head_sha(root) == msg.sha
 
     (root / "exps" / "exp0044").mkdir()
     (root / "exps" / "exp0044" / "config.json").write_text('{"fail": true}', encoding="utf-8")
