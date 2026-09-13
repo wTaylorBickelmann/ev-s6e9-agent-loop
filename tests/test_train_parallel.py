@@ -127,7 +127,9 @@ def test_parallel_caps_n_jobs_single_worker_keeps_default(monkeypatch):
 
     def _capture(fb, variant, raw_tr, raw_va, y_tr, y_va, *, seed, overrides):
         seen.append(overrides.get("n_jobs"))
-        return _stub_fit_fold(fb, variant, raw_tr, raw_va, y_tr, y_va, seed=seed, overrides=overrides)
+        return _stub_fit_fold(
+            fb, variant, raw_tr, raw_va, y_tr, y_va, seed=seed, overrides=overrides
+        )
 
     monkeypatch.setattr(deotte_mod, "_fit_fold", _capture)
     df = _tiny_train()
