@@ -1,0 +1,28 @@
+{
+  "id": "exp0035",
+  "title": "income-digit-features",
+  "hypothesis": "Trailing-zero count and last non-zero digit of Annual_Income_USD expose synthetic-generation cluster structure that 256-bin histograms and TE cannot isolate, lifting 3-seed Deotte blend CV over 0.94559.",
+  "parent": "exp0031",
+  "strategy": "deotte",
+  "train_args": [
+    "--strategy",
+    "deotte",
+    "--freq",
+    "--te",
+    "--seeds",
+    "42,43,44",
+    "--weight-search",
+    "--note",
+    "exp0035: +income_trailing_zeros +income_last_digit helper features"
+  ],
+  "predict_args": [
+    "--strategy",
+    "deotte"
+  ],
+  "submit_message": "exp0035 income digit features (trailing zeros + last non-zero digit)",
+  "folds": 5,
+  "seed": 42,
+  "cv_mean": 0.9455659296047594,
+  "cv_std": 0.0006042110524077157,
+  "cv": "0.94557 \u00b1 0.00060"
+}

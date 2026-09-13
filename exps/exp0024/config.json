@@ -1,0 +1,28 @@
+{
+  "id": "exp0024",
+  "title": "deotte-weight-search",
+  "hypothesis": "Non-equal blend weights for m1/m2/m3 (grid search on 3-seed OOF) reduce sub-model redundancy and lift CV AUC over equal 1/3 (0.94556).",
+  "parent": "exp0023",
+  "strategy": "deotte",
+  "train_args": [
+    "--strategy",
+    "deotte",
+    "--freq",
+    "--te",
+    "--seeds",
+    "42,43,44",
+    "--weight-search",
+    "--note",
+    "exp0024: Deotte m1/m2/m3 weight search on 3-seed OOF"
+  ],
+  "predict_args": [
+    "--strategy",
+    "deotte"
+  ],
+  "submit_message": "exp0024 deotte weight search",
+  "folds": 5,
+  "seed": 42,
+  "cv_mean": 0.9455762175108167,
+  "cv_std": 0.0006175684953486288,
+  "cv": "0.94558 \u00b1 0.00062"
+}

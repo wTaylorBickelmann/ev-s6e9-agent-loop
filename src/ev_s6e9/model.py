@@ -67,6 +67,63 @@ def make_xgb_model(seed: int = 42, **overrides: Any) -> Any:
     return xgb.XGBClassifier(**p)
 
 
+CB_DEFAULTS: dict[str, Any] = {
+    "n_estimators": 1500,
+    "learning_rate": 0.05,
+    "depth": 6,
+    "eval_metric": "AUC",
+    "thread_count": -1,
+    "verbose": False,
+}
+
+CB_FIT_KWARGS: dict[str, Any] = {
+    "early_stopping_rounds": 50,
+}
+
+
+def cb_params(**overrides: Any) -> dict[str, Any]:
+    """CatBoost defaults with caller overrides."""
+
+    p = dict(CB_DEFAULTS)
+    p.update(overrides)
+    return p
+
+
+def make_catboost_model(seed: int = 42, **overrides: Any) -> Any:
+    """Construct a CatBoostClassifier for binary AUC."""
+
+    from catboost import CatBoostClassifier
+
+    p = cb_params(random_seed=seed, **overrides)
+    return CatBoostClassifier(**p)
+
+
+HGB_DEFAULTS: dict[str, Any] = {
+    "max_iter": 50,
+    "learning_rate": 0.05,
+    "max_leaf_nodes": 31,
+    "early_stopping": False,
+    "random_state": 42,
+}
+
+
+def hgb_params(**overrides: Any) -> dict[str, Any]:
+    """HistGradientBoostingClassifier defaults with caller overrides."""
+
+    p = dict(HGB_DEFAULTS)
+    p.update(overrides)
+    return p
+
+
+def make_hgb_model(seed: int = 42, **overrides: Any) -> Any:
+    """Construct a HistGradientBoostingClassifier for binary AUC."""
+
+    from sklearn.ensemble import HistGradientBoostingClassifier
+
+    p = hgb_params(random_state=seed, **overrides)
+    return HistGradientBoostingClassifier(**p)
+
+
 def short_params(p: dict[str, Any] | None = None) -> str:
     """One-line key params for EXPERIMENTS.md."""
     p = p or DEFAULTS

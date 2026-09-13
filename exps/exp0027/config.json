@@ -1,0 +1,22 @@
+{
+  "id": "exp0027",
+  "title": "ensemble-lgbm-deotte",
+  "hypothesis": "Ensemble exp0026 LightGBM OOF with exp0024 Deotte 3-seed XGB OOF via grid-searched blend weight alpha on fixed 5-fold (seed 42) to lift CV beyond 0.94558.",
+  "parent": "exp0026",
+  "strategy": "ensemble",
+  "train_args": [
+    "--strategy",
+    "ensemble",
+    "--oof-a",
+    "exps/exp0026/oof.csv",
+    "--oof-b",
+    "exps/exp0024/oof.csv",
+    "--note",
+    "exp0027: ensemble exp0026 LGBM + exp0024 Deotte 3-seed XGB via OOF weight search"
+  ],
+  "folds": 5,
+  "seed": 42,
+  "cv_mean": 0.9455801852459569,
+  "cv_std": 0.0006113585851994094,
+  "cv": "0.94558 \u00b1 0.00061"
+}

@@ -1,0 +1,28 @@
+{
+  "id": "exp0038",
+  "title": "10-seed-deotte-dual-te-blend",
+  "hypothesis": "Doubling seed-averaging from 5 to 10 seeds (42-51) on the s037 dual-TE (m=5 + m=20) feature set further reduces model variance and yields a small systematic CV gain over the 0.94566 floor.",
+  "parent": "exp0037",
+  "strategy": "deotte",
+  "train_args": [
+    "--strategy",
+    "deotte",
+    "--freq",
+    "--te",
+    "--seeds",
+    "42,43,44,45,46,47,48,49,50,51",
+    "--weight-search",
+    "--note",
+    "exp0038: 10-seed (42-51) Deotte blend on dual-TE (m=5+m=20) + weight search"
+  ],
+  "predict_args": [
+    "--strategy",
+    "deotte"
+  ],
+  "submit_message": "exp0038 10-seed deotte dual-TE blend",
+  "folds": 5,
+  "seed": 42,
+  "cv_mean": 0.9456671704040517,
+  "cv_std": 0.0006278099168358153,
+  "cv": "0.94567 \u00b1 0.00063"
+}

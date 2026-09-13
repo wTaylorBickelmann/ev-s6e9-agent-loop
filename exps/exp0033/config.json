@@ -1,0 +1,28 @@
+{
+  "id": "exp0033",
+  "title": "commute-per-charger",
+  "hypothesis": "Commute distance relative to charging availability (Daily_Commute_km / (chargers_total + 1)) captures non-linear charging pressure per commute km that axis-aligned tree splits miss, improving 3-seed Deotte blend CV.",
+  "parent": "exp0031",
+  "strategy": "deotte",
+  "train_args": [
+    "--strategy",
+    "deotte",
+    "--freq",
+    "--te",
+    "--seeds",
+    "42,43,44",
+    "--weight-search",
+    "--note",
+    "exp0033: +commute_per_charger helper (Daily_Commute_km / (home+work+1))"
+  ],
+  "predict_args": [
+    "--strategy",
+    "deotte"
+  ],
+  "submit_message": "exp0033 commute_per_charger helper",
+  "folds": 5,
+  "seed": 42,
+  "cv_mean": 0.9455670971466974,
+  "cv_std": 0.0006182240772080107,
+  "cv": "0.94557 \u00b1 0.00062"
+}

@@ -56,6 +56,7 @@ def test_helper_features():
         Annual_Income_USD=80_000,
         Environmental_Concern_Level=7,
         Subsidy_Available="Yes",
+        Range_Anxiety_Level="High",
     )
     fb = FeatureBuilder().fit(df)
     x = fb.transform(df)
@@ -64,11 +65,17 @@ def test_helper_features():
         "chargers_total",
         "income_x_subsidy",
         "concern_x_subsidy",
+        "no_home_charge_x_high_anxiety",
+        "commute_per_charger",
     ]
     assert x["worry_score"].iloc[0] == pytest.approx(20 - 5 * 2 - 5 * 3 - 150)
     assert x["chargers_total"].iloc[0] == 5
     assert x["income_x_subsidy"].iloc[0] == pytest.approx(0.8)
     assert x["concern_x_subsidy"].iloc[0] == pytest.approx(7.0)
+    # Home_Charging_Possible="Yes" → (1.0 - 1.0) * 1.0 = 0.0
+    assert x["no_home_charge_x_high_anxiety"].iloc[0] == pytest.approx(0.0)
+    # commute_per_charger = 20 / (2 + 3 + 1) = 20/6
+    assert x["commute_per_charger"].iloc[0] == pytest.approx(20.0 / 6.0)
 
 
 def test_category_codes_shared_train_test():

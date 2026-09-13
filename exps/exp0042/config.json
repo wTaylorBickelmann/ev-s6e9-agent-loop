@@ -1,0 +1,25 @@
+{
+  "id": "exp0042",
+  "title": "lgbm-6te-s041-features",
+  "hypothesis": "Retraining LightGBM on the full s041 6-TE feature set (income m=20/5/2 + commute m=20/5/2) benchmarks whether the LGBM-XGB gap has closed enough for a meaningful future ensemble.",
+  "parent": "exp0026",
+  "strategy": "lgbm",
+  "train_args": [
+    "--strategy",
+    "lgbm",
+    "--freq",
+    "--te",
+    "--note",
+    "s042 LGBM on full s041 6-TE features"
+  ],
+  "predict_args": [
+    "--strategy",
+    "lgbm"
+  ],
+  "submit_message": "s042 lgbm 6-TE features",
+  "folds": 5,
+  "seed": 42,
+  "cv_mean": 0.9454256934377832,
+  "cv_std": 0.0006366891115121077,
+  "cv": "0.94543 \u00b1 0.00064"
+}

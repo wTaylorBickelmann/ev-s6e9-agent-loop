@@ -1,0 +1,28 @@
+{
+  "id": "exp0031",
+  "title": "no-home-charge-x-high-anxiety",
+  "hypothesis": "Replacing dead commute_x_anxiety with no_home_charge_x_high_anxiety isolates the acute friction of no home charging + high range anxiety for tree splits, lifting CV over 0.94558.",
+  "parent": "exp0024",
+  "strategy": "deotte",
+  "train_args": [
+    "--strategy",
+    "deotte",
+    "--freq",
+    "--te",
+    "--seeds",
+    "42,43,44",
+    "--weight-search",
+    "--note",
+    "exp0031: no_home_charge_x_high_anxiety helper (replaces commute_x_anxiety)"
+  ],
+  "predict_args": [
+    "--strategy",
+    "deotte"
+  ],
+  "submit_message": "exp0031 no_home_charge_x_high_anxiety helper",
+  "folds": 5,
+  "seed": 42,
+  "cv_mean": 0.9455924164144541,
+  "cv_std": 0.0006291881466948786,
+  "cv": "0.94559 \u00b1 0.00063"
+}

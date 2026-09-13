@@ -109,3 +109,103 @@ Template:
 - LB: 0.94556
 - Takeaway: exp0023 submitted CV=0.94556 LB=0.94556
 
+### 2026-09-12 — Deotte XGB 3-model blend (n_estimators=3000 lr=0.05 max_depth=6), 5-fold
+- CV: 0.94558 ± 0.00062
+- LB: —
+- Takeaway: exp0024: Deotte m1/m2/m3 weight search on 3-seed OOF
+
+### 2026-09-12 — Deotte XGB 3-model blend (n_estimators=3000 lr=0.05 max_depth=6), 5-fold
+- CV: 0.94557 ± 0.00063
+- LB: —
+- Takeaway: exp0025: +income_x_concern helper feature (affluent-green interaction)
+
+### 2026-09-12 — LightGBM n_estimators=800 lr=0.05 num_leaves=31, Deotte freq+TE, 5-fold
+- CV: 0.94529 ± 0.00059
+- LB: —
+- Takeaway: exp0026: LightGBM baseline on Deotte freq+TE features (5-fold seed 42)
+
+### 2026-09-13 — Ensemble LGBM+Deotte (alpha=0.110), 5-fold
+- CV: 0.94558 ± 0.00061
+- LB: —
+- Takeaway: exp0027: ensemble exp0026 LGBM + exp0024 Deotte 3-seed XGB via OOF weight search
+
+### 2026-09-13 — Deotte XGB 3-model blend (n_estimators=3000 lr=0.05 max_depth=6), 5-fold
+- CV: 0.94551 ± 0.00064
+- LB: —
+- Takeaway: exp0028: +commute_x_anxiety helper (commute * High range anxiety)
+
+### 2026-09-13 — LightGBM n_estimators=1500 lr=0.05 num_leaves=None, Deotte freq+TE, 5-fold
+- CV: 0.94536 ± 0.00064
+- LB: —
+- Takeaway: exp0029: CatBoost 5-fold baseline on Deotte freq+TE features
+
+### 2026-09-13 — Ensemble LGBM+Deotte (alpha=0.140), 5-fold
+- CV: 0.94558 ± 0.00062
+- LB: —
+- Takeaway: exp0030: ensemble exp0029 CatBoost + exp0024 Deotte 3-seed XGB via OOF weight search
+
+### 2026-09-13 — Deotte XGB 3-model blend (n_estimators=3000 lr=0.05 max_depth=6), 5-fold
+- CV: 0.94559 ± 0.00063
+- LB: —
+- Takeaway: exp0031: no_home_charge_x_high_anxiety helper (replaces commute_x_anxiety)
+
+### 2026-09-13 — LightGBM n_estimators=None lr=0.05 num_leaves=None, raw+charging_total, 5-fold
+- CV: 0.94308 ± 0.00066
+- LB: —
+- Takeaway: exp0032: HGB baseline on Deotte freq+TE features
+
+### 2026-09-13 — Deotte XGB 3-model blend (n_estimators=3000 lr=0.05 max_depth=6), 5-fold
+- CV: 0.94557 ± 0.00062
+- LB: —
+- Takeaway: exp0033: +commute_per_charger helper (Daily_Commute_km / (home+work+1))
+
+### 2026-09-13 — Deotte XGB 3-model blend (n_estimators=3000 lr=0.05 max_depth=6), 5-fold
+- CV: 0.94557 ± 0.00060
+- LB: —
+- Takeaway: exp0035: +income_trailing_zeros +income_last_digit helper features
+
+### 2026-09-13 — Deotte XGB 3-model blend (n_estimators=3000 lr=0.05 max_depth=6), 5-fold
+- CV: 0.94561 ± 0.00063
+- LB: —
+- Takeaway: exp0036: 5-seed (42-46) Deotte blend on clean s031 5-helper feature set + weight search
+
+### 2026-09-13 — Deotte XGB 3-model blend (n_estimators=3000 lr=0.05 max_depth=6), 5-fold
+- CV: 0.94566 ± 0.00064
+- LB: —
+- Takeaway: exp0037: multi-smoothing TE income (m=5 + m=20) 5-seed blend + weight search
+
+### 2026-09-13 — Deotte XGB 3-model blend (n_estimators=3000 lr=0.05 max_depth=6), 5-fold
+- CV: 0.94567 ± 0.00063
+- LB: —
+- Takeaway: exp0038: 10-seed (42-51) Deotte blend on dual-TE (m=5+m=20) + weight search
+
+### 2026-09-13 — 3-model OOF rank-blend (w=0.897/0.034/0.069), 5-fold
+- CV: 0.94567 ± 0.00063
+- LB: —
+- Takeaway: exp0039: 3-model OOF rank-blend (XGB exp0038 + LGBM exp0026 + CatBoost exp0029) with simplex weight search (n_grid=30)
+
+### 2026-09-13 — Deotte XGB 3-model blend (n_estimators=3000 lr=0.05 max_depth=6), 5-fold
+- CV: 0.94569 ± 0.00062
+- LB: —
+- Takeaway: s040 triple-TE m=2+m=5+m=20
+
+### 2026-09-13 — Deotte XGB 3-model blend (n_estimators=3000 lr=0.05 max_depth=6), 5-fold
+- CV: 0.94575 ± 0.00064
+- LB: —
+- Takeaway: s041 +commute triple-TE m=2+m=5+m=20
+
+### 2026-09-13 — LightGBM n_estimators=800 lr=0.05 num_leaves=31, Deotte freq+TE, 5-fold
+- CV: 0.94543 ± 0.00064
+- LB: —
+- Takeaway: s042 LGBM on full s041 6-TE features
+
+### 2026-09-13 — Deotte XGB 3-model blend (n_estimators=3000 lr=0.05 max_depth=8), 5-fold
+- CV: 0.94566 ± 0.00064
+- LB: —
+- Takeaway: s043 XGB max_depth=8 on s041 feature set
+
+### 2026-09-13 — exp0041 submit
+- CV: 0.94575
+- LB: 0.88273
+- Takeaway: exp0041 submitted CV=0.94575 LB=0.88273
+

@@ -1,0 +1,28 @@
+{
+  "id": "exp0039",
+  "cv_mean": 0.9456695335482708,
+  "cv_std": 0.0006262333516169819,
+  "cv": "0.94567 \u00b1 0.00063",
+  "fold_aucs": [
+    0.9447688922803603,
+    0.94537948249086,
+    0.9466624309513763,
+    0.9459418525698865,
+    0.9455950094488708
+  ],
+  "strategy": "rank_blend",
+  "params": {
+    "weights": [
+      0.896551724137931,
+      0.034482758620689655,
+      0.0689655172413793
+    ],
+    "oof_a": "/Users/will/Documents/code_projects/ev-s6e9-agent-loop/exps/exp0038/oof.csv",
+    "oof_b": "/Users/will/Documents/code_projects/ev-s6e9-agent-loop/exps/exp0026/oof.csv",
+    "oof_c": "/Users/will/Documents/code_projects/ev-s6e9-agent-loop/exps/exp0029/oof.csv",
+    "folds": 5,
+    "prob_blend_cv": "0.94567 \u00b1 0.00062",
+    "prob_blend_mean": 0.9456678983831102
+  },
+  "status": "scored"
+}

@@ -13,14 +13,23 @@ import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 
 from ev_s6e9.experiments import append_chunk, format_chunk
-from ev_s6e9.features import FeatureBuilder, TE_COL, encode_target, te_apply, te_fit, te_oof
+from ev_s6e9.features import FeatureBuilder, TE_COL, encode_target, te_apply, te_fit, te_oof, te_oof_avg
 from ev_s6e9.metrics import auc, fmt_cv, mean_std
 from ev_s6e9.model import XGB_DEFAULTS, make_xgb_model, short_xgb_params
-from ev_s6e9.paths import CV_JSON, OOF_CSV, OUTPUTS
+from ev_s6e9.paths import CV_JSON, OOF_CSV, OUTPUTS, ROOT
 from ev_s6e9.schema import ID_COL, TARGET
 
 STRATEGY = "deotte"
 VARIANTS = ("m1", "m2", "m3")
+
+# Default OOFs for the s027 ensemble: LightGBM (exp0026) + Deotte 3-seed XGB (exp0024).
+ENSEMBLE_OOF_A = ROOT / "exps" / "exp0026" / "oof.csv"  # LightGBM standalone
+ENSEMBLE_OOF_B = ROOT / "exps" / "exp0024" / "oof.csv"  # Deotte 3-seed XGB blend
+
+# Default OOFs for the s039 3-model rank-blend: XGB (exp0038) + LGBM (exp0026) + CatBoost (exp0029).
+RANK_BLEND_OOF_A = ROOT / "exps" / "exp0038" / "oof.csv"  # s038 10-seed Deotte XGB
+RANK_BLEND_OOF_B = ROOT / "exps" / "exp0026" / "oof.csv"  # s026 LightGBM standalone
+RANK_BLEND_OOF_C = ROOT / "exps" / "exp0029" / "oof.csv"  # s029 CatBoost standalone
 
 
 class DeotteVariant(Enum):
@@ -55,6 +64,42 @@ class DeotteCvResult:
     params: dict = field(default_factory=dict)
 
 
+@dataclass
+class EnsembleCvResult:
+    """Grid-searched alpha blend of two pre-computed OOFs (LightGBM + Deotte).
+
+    `alpha` is the weight on `oof_a`; the blend is `alpha * oof_a + (1 - alpha) * oof_b`.
+    """
+
+    oof: np.ndarray
+    fold_aucs: list[float]
+    mean: float
+    std: float
+    alpha: float
+    oof_a_path: str
+    oof_b_path: str
+
+
+@dataclass
+class RankBlendCvResult:
+    """Grid-searched 3-way rank-space blend of pre-computed OOFs.
+
+    `weights` are non-negative simplex weights (sum=1) found by maximising mean
+    fold AUC of the rank-space blend. `prob_*` fields are the control comparison:
+    the same weights applied to raw probabilities.
+    """
+
+    oof: np.ndarray
+    fold_aucs: list[float]
+    mean: float
+    std: float
+    weights: list[float]
+    oof_paths: list[str]
+    prob_fold_aucs: list[float]
+    prob_mean: float
+    prob_std: float
+
+
 def _fit_fold(
     fb: FeatureBuilder,
     variant: DeotteVariant,
@@ -77,9 +122,34 @@ def _fit_fold(
         v_tr = pd.to_numeric(raw_tr[TE_COL], errors="coerce")
         v_va = pd.to_numeric(raw_va[TE_COL], errors="coerce")
         mp, prior = te_fit(v_tr, y_tr)
-        x_tr[TE_COL + "_te"] = te_oof(v_tr, y_tr, seed=seed)
+        x_tr[TE_COL + "_te"] = te_oof_avg(v_tr, y_tr, m=20.0)
         x_va[TE_COL + "_te"] = te_apply(v_va, mp, prior)
         m.te_map_ = (mp, prior)
+        # Second TE with lower regularisation (m=5) for a less-smoothed view
+        mp5, prior5 = te_fit(v_tr, y_tr, m=5.0)
+        x_tr[TE_COL + "_te_m5"] = te_oof_avg(v_tr, y_tr, m=5.0)
+        x_va[TE_COL + "_te_m5"] = te_apply(v_va, mp5, prior5)
+        m.te_map_m5_ = (mp5, prior5)
+        # Third TE with near-zero smoothing (m=2) for a fine-grained, value-specific view
+        mp2, prior2 = te_fit(v_tr, y_tr, m=2.0)
+        x_tr[TE_COL + "_te_m2"] = te_oof_avg(v_tr, y_tr, m=2.0)
+        x_va[TE_COL + "_te_m2"] = te_apply(v_va, mp2, prior2)
+        m.te_map_m2_ = (mp2, prior2)
+        # Commute TE: triple-smoothing (m=20, m=5, m=2) on Daily_Commute_km
+        c_tr = pd.to_numeric(raw_tr["Daily_Commute_km"], errors="coerce")
+        c_va = pd.to_numeric(raw_va["Daily_Commute_km"], errors="coerce")
+        cm, cp = te_fit(c_tr, y_tr)
+        x_tr["Daily_Commute_km_te"] = te_oof_avg(c_tr, y_tr, m=20.0)
+        x_va["Daily_Commute_km_te"] = te_apply(c_va, cm, cp)
+        m.commute_te_map_ = (cm, cp)
+        cm5, cp5 = te_fit(c_tr, y_tr, m=5.0)
+        x_tr["Daily_Commute_km_te_m5"] = te_oof_avg(c_tr, y_tr, m=5.0)
+        x_va["Daily_Commute_km_te_m5"] = te_apply(c_va, cm5, cp5)
+        m.commute_te_map_m5_ = (cm5, cp5)
+        cm2, cp2 = te_fit(c_tr, y_tr, m=2.0)
+        x_tr["Daily_Commute_km_te_m2"] = te_oof_avg(c_tr, y_tr, m=2.0)
+        x_va["Daily_Commute_km_te_m2"] = te_apply(c_va, cm2, cp2)
+        m.commute_te_map_m2_ = (cm2, cp2)
     if use_margin:
         margin_tr = fb.recipe_logit(raw_tr)
         margin_va = fb.recipe_logit(raw_va)
@@ -168,6 +238,46 @@ def run_cv(
     return DeotteCvResult(blend_oof, blend_scores, mean, std, variants, fb, params)
 
 
+def search_blend_weights(
+    variant_oofs: list[np.ndarray],
+    y: np.ndarray,
+    skf: StratifiedKFold,
+    *,
+    n_grid: int = 30,
+) -> tuple[np.ndarray, float, list[float]]:
+    """Grid-search non-negative weights (sum=1) maximizing mean fold AUC.
+
+    For 3 variants, parameterises the simplex as (w1, w2) with w3 = 1 - w1 - w2.
+    Returns (best_weights, best_mean_auc, best_fold_aucs).
+    """
+    n = len(variant_oofs)
+    best_w = np.ones(n) / n
+    best_auc = -1.0
+    best_folds: list[float] = []
+
+    if n == 3:
+        steps = np.linspace(0, 1, n_grid)
+        for w1 in steps:
+            for w2 in steps:
+                w3 = 1.0 - w1 - w2
+                if w3 < -1e-9:
+                    continue
+                w3 = max(w3, 0.0)
+                blend = w1 * variant_oofs[0] + w2 * variant_oofs[1] + w3 * variant_oofs[2]
+                fold_aucs = [auc(y[va], blend[va]) for _, va in skf.split(np.zeros(len(y)), y)]
+                mean_auc = float(np.mean(fold_aucs))
+                if mean_auc > best_auc:
+                    best_auc = mean_auc
+                    best_w = np.array([w1, w2, w3])
+                    best_folds = fold_aucs
+    else:
+        blend = np.mean(variant_oofs, axis=0)
+        best_folds = [auc(y[va], blend[va]) for _, va in skf.split(np.zeros(len(y)), y)]
+        best_auc = float(np.mean(best_folds))
+
+    return best_w, best_auc, best_folds
+
+
 def run_cv_multi_seed(
     train: pd.DataFrame,
     test: pd.DataFrame | None = None,
@@ -178,19 +288,24 @@ def run_cv_multi_seed(
     model_overrides: dict | None = None,
     freq: bool = False,
     te: bool = False,
+    weight_search: bool = False,
 ) -> DeotteCvResult:
-    """Run Deotte 3-variant CV for each seed; average OOFs; evaluate on fixed folds."""
+    """Run Deotte 3-variant CV for each seed; average OOFs; evaluate on fixed folds.
+
+    When `weight_search` is True, grid-searches non-equal blend weights (w1, w2, w3)
+    on the per-variant OOFs (averaged across seeds) to maximise CV AUC.
+    """
     if seeds is None:
         seeds = [fold_seed]
     fb = FeatureBuilder(freq=freq, te=te).fit(train, test)
     y = encode_target(train[TARGET]).to_numpy()
     skf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=fold_seed)
 
-    seed_oofs: list[np.ndarray] = []
+    # Collect per-variant OOF sums across seeds
+    variant_oof_sums: dict[str, np.ndarray] = {v.value: np.zeros(len(y), dtype=float) for v in DeotteVariant}
     all_variants: dict[str, dict[str, VariantCv]] = {}
     for s in seeds:
         variants: dict[str, VariantCv] = {}
-        oofs = []
         for v in DeotteVariant:
             vc = run_variant_cv(
                 train, fb, v,
@@ -198,16 +313,24 @@ def run_cv_multi_seed(
                 model_overrides=model_overrides,
             )
             variants[v.value] = vc
-            oofs.append(vc.oof)
-        seed_oofs.append(np.mean(oofs, axis=0))
+            variant_oof_sums[v.value] += vc.oof
         all_variants[f"seed_{s}"] = variants
 
-    blend_oof = np.mean(seed_oofs, axis=0)
-    blend_scores = []
-    for tr, va in skf.split(train, y):
-        blend_scores.append(auc(y[va], blend_oof[va]))
-    mean, std = mean_std(blend_scores)
-    params = {**XGB_DEFAULTS, **(model_overrides or {}), "seeds": seeds}
+    # Average per-variant OOFs across seeds
+    n_seeds = len(seeds)
+    variant_oofs_avg = [variant_oof_sums[v.value] / n_seeds for v in DeotteVariant]
+
+    if weight_search:
+        weights, best_auc, best_folds = search_blend_weights(variant_oofs_avg, y, skf)
+        blend_oof = weights[0] * variant_oofs_avg[0] + weights[1] * variant_oofs_avg[1] + weights[2] * variant_oofs_avg[2]
+        blend_scores = best_folds
+        mean, std = mean_std(blend_scores)
+        params = {**XGB_DEFAULTS, **(model_overrides or {}), "seeds": seeds, "blend_weights": weights.tolist()}
+    else:
+        blend_oof = np.mean(variant_oofs_avg, axis=0)
+        blend_scores = [auc(y[va], blend_oof[va]) for _, va in skf.split(train, y)]
+        mean, std = mean_std(blend_scores)
+        params = {**XGB_DEFAULTS, **(model_overrides or {}), "seeds": seeds}
 
     # Store first seed's variants for save_run compatibility
     first_variants = all_variants.get(f"seed_{seeds[0]}", {})
@@ -277,12 +400,14 @@ def train(
     model_overrides: dict | None = None,
     freq: bool = False,
     te: bool = False,
+    weight_search: bool = False,
 ) -> DeotteCvResult:
     """Run Deotte CV, persist artifacts, optionally append EXPERIMENTS.md."""
     if seeds:
         cv = run_cv_multi_seed(
             df, test, folds=folds, fold_seed=seed, seeds=seeds,
             model_overrides=model_overrides, freq=freq, te=te,
+            weight_search=weight_search,
         )
     else:
         cv = run_cv(df, test, folds=folds, seed=seed, model_overrides=model_overrides, freq=freq, te=te)
@@ -293,6 +418,9 @@ def train(
     for name in VARIANTS:
         vc = cv.variants[name]
         print(f"  {name}: {fmt_cv(vc.mean, vc.std)}")
+    if "blend_weights" in cv.params:
+        w = cv.params["blend_weights"]
+        print(f"  blend weights: m1={w[0]:.4f} m2={w[1]:.4f} m3={w[2]:.4f}")
     print("folds:", ", ".join(f"{a:.5f}" for a in cv.fold_aucs))
     return cv
 
@@ -317,6 +445,21 @@ def _predict_variant(
                 x[TE_COL + "_te"] = te_apply(
                     pd.to_numeric(df[TE_COL], errors="coerce"), *m.te_map_
                 )
+                x[TE_COL + "_te_m5"] = te_apply(
+                    pd.to_numeric(df[TE_COL], errors="coerce"), *m.te_map_m5_
+                )
+                x[TE_COL + "_te_m2"] = te_apply(
+                    pd.to_numeric(df[TE_COL], errors="coerce"), *m.te_map_m2_
+                )
+                x["Daily_Commute_km_te"] = te_apply(
+                    pd.to_numeric(df["Daily_Commute_km"], errors="coerce"), *m.commute_te_map_
+                )
+                x["Daily_Commute_km_te_m5"] = te_apply(
+                    pd.to_numeric(df["Daily_Commute_km"], errors="coerce"), *m.commute_te_map_m5_
+                )
+                x["Daily_Commute_km_te_m2"] = te_apply(
+                    pd.to_numeric(df["Daily_Commute_km"], errors="coerce"), *m.commute_te_map_m2_
+                )
             ps.append(m.predict_proba(x, base_margin=margin)[:, 1])
     else:
         ps = []
@@ -325,6 +468,21 @@ def _predict_variant(
             if fb.te:
                 x[TE_COL + "_te"] = te_apply(
                     pd.to_numeric(df[TE_COL], errors="coerce"), *m.te_map_
+                )
+                x[TE_COL + "_te_m5"] = te_apply(
+                    pd.to_numeric(df[TE_COL], errors="coerce"), *m.te_map_m5_
+                )
+                x[TE_COL + "_te_m2"] = te_apply(
+                    pd.to_numeric(df[TE_COL], errors="coerce"), *m.te_map_m2_
+                )
+                x["Daily_Commute_km_te"] = te_apply(
+                    pd.to_numeric(df["Daily_Commute_km"], errors="coerce"), *m.commute_te_map_
+                )
+                x["Daily_Commute_km_te_m5"] = te_apply(
+                    pd.to_numeric(df["Daily_Commute_km"], errors="coerce"), *m.commute_te_map_m5_
+                )
+                x["Daily_Commute_km_te_m2"] = te_apply(
+                    pd.to_numeric(df["Daily_Commute_km"], errors="coerce"), *m.commute_te_map_m2_
                 )
             ps.append(m.predict_proba(x)[:, 1])
     return np.mean(ps, axis=0)
@@ -343,3 +501,317 @@ def predict_proba(df: pd.DataFrame, out: Path | None = None) -> np.ndarray:
         models = [joblib.load(p) for p in paths]
         preds.append(_predict_variant(df, fb, name, models))
     return np.mean(preds, axis=0)
+
+
+def _resolve_oof(path: Path | str | None, default: Path) -> Path:
+    """Resolve an OOF path (absolute, or relative to repo root) with a default."""
+
+    if path is None:
+        return default
+    p = Path(path)
+    return p if p.is_absolute() else ROOT / p
+
+
+def search_ensemble_weight(
+    oof_a: np.ndarray,
+    oof_b: np.ndarray,
+    y: np.ndarray,
+    skf: StratifiedKFold,
+    *,
+    n_grid: int = 101,
+) -> tuple[float, float, list[float]]:
+    """Grid-search alpha in [0, 1] maximising mean fold AUC of the blend.
+
+    Blend is `alpha * oof_a + (1 - alpha) * oof_b`. Returns
+    (best_alpha, best_mean_auc, best_fold_aucs).
+    """
+    fold_idx = list(skf.split(np.zeros(len(y)), y))
+    steps = np.linspace(0.0, 1.0, n_grid)
+    best_alpha, best_auc, best_folds = 0.5, -1.0, []
+    for alpha in steps:
+        blend = alpha * oof_a + (1.0 - alpha) * oof_b
+        fold_aucs = [auc(y[va], blend[va]) for _, va in fold_idx]
+        mean_auc = float(np.mean(fold_aucs))
+        if mean_auc > best_auc:
+            best_auc = mean_auc
+            best_alpha = float(alpha)
+            best_folds = fold_aucs
+    return best_alpha, best_auc, best_folds
+
+
+def run_ensemble_cv(
+    df: pd.DataFrame,
+    oof_a: Path | str | None = None,
+    oof_b: Path | str | None = None,
+    *,
+    folds: int = 5,
+    seed: int = 42,
+    n_grid: int = 101,
+) -> EnsembleCvResult:
+    """Blend two pre-computed OOFs on fixed folds; grid-search the weight alpha.
+
+    OOFs are aligned to `df` by `id`. Evaluation uses the same
+    `StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed)` as the
+    original CV so the ensemble AUC is comparable to the standalone runs.
+    """
+    a_path = _resolve_oof(oof_a, ENSEMBLE_OOF_A)
+    b_path = _resolve_oof(oof_b, ENSEMBLE_OOF_B)
+    y = encode_target(df[TARGET]).to_numpy()
+    ids = df[ID_COL].to_numpy()
+
+    def _load(path: Path) -> np.ndarray:
+        d = pd.read_csv(path).set_index(ID_COL).reindex(ids)
+        if d[TARGET].isna().any():
+            raise ValueError(f"OOF {path} is missing ids present in train")
+        return d[TARGET].to_numpy(dtype=float)
+
+    oa = _load(a_path)
+    ob = _load(b_path)
+    skf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed)
+    alpha, _, best_folds = search_ensemble_weight(oa, ob, y, skf, n_grid=n_grid)
+    blend_oof = alpha * oa + (1.0 - alpha) * ob
+    mean, std = mean_std(best_folds)
+    return EnsembleCvResult(
+        oof=blend_oof,
+        fold_aucs=best_folds,
+        mean=mean,
+        std=std,
+        alpha=alpha,
+        oof_a_path=str(a_path),
+        oof_b_path=str(b_path),
+    )
+
+
+def save_ensemble_run(df: pd.DataFrame, cv: EnsembleCvResult, out: Path | None = None) -> None:
+    """Write the blended OOF and a cv.json payload (no fold models)."""
+
+    out = out or OUTPUTS
+    out.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame({ID_COL: df[ID_COL], TARGET: cv.oof}).to_csv(out / OOF_CSV.name, index=False)
+    payload = {
+        "strategy": "ensemble",
+        "fold_aucs": cv.fold_aucs,
+        "mean": cv.mean,
+        "std": cv.std,
+        "cv": fmt_cv(cv.mean, cv.std),
+        "params": {
+            "alpha": cv.alpha,
+            "oof_a": cv.oof_a_path,
+            "oof_b": cv.oof_b_path,
+            "folds": len(cv.fold_aucs),
+        },
+        "n": int(len(df)),
+        "folds": len(cv.fold_aucs),
+    }
+    (out / CV_JSON.name).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def log_ensemble(
+    cv: EnsembleCvResult,
+    *,
+    folds: int,
+    note: str = "",
+    path: Path | None = None,
+) -> Path:
+    """Append an ensemble chunk to EXPERIMENTS.md."""
+
+    title = f"Ensemble LGBM+Deotte (alpha={cv.alpha:.3f}), {folds}-fold"
+    chunk = format_chunk(
+        title,
+        fmt_cv(cv.mean, cv.std),
+        takeaway=note or "auto-logged from train --strategy ensemble",
+    )
+    return append_chunk(chunk, path=path)
+
+
+def train_ensemble(
+    df: pd.DataFrame,
+    oof_a: Path | str | None = None,
+    oof_b: Path | str | None = None,
+    *,
+    folds: int = 5,
+    seed: int = 42,
+    log: bool = True,
+    note: str = "",
+    experiments_path: Path | None = None,
+    out: Path | None = None,
+    n_grid: int = 101,
+) -> EnsembleCvResult:
+    """Blend two pre-computed OOFs, persist artifacts, optionally log EXPERIMENTS.md."""
+
+    cv = run_ensemble_cv(df, oof_a, oof_b, folds=folds, seed=seed, n_grid=n_grid)
+    save_ensemble_run(df, cv, out=out)
+    if log:
+        log_ensemble(cv, folds=folds, note=note, path=experiments_path)
+    print(f"CV AUC (ensemble): {fmt_cv(cv.mean, cv.std)}")
+    print(f"  alpha (weight on oof_a={cv.oof_a_path}): {cv.alpha:.4f}")
+    print("folds:", ", ".join(f"{a:.5f}" for a in cv.fold_aucs))
+    return cv
+
+
+def _to_percentile_rank(oof: np.ndarray) -> np.ndarray:
+    """Percentile ranks in (0, 1]: `scipy.stats.rankdata(oof) / len(oof)`."""
+
+    from scipy.stats import rankdata
+
+    return rankdata(oof) / len(oof)
+
+
+def search_rank_blend_weights(
+    rank_oofs: list[np.ndarray],
+    y: np.ndarray,
+    skf: StratifiedKFold,
+    *,
+    n_grid: int = 30,
+) -> tuple[np.ndarray, float, list[float]]:
+    """Grid-search non-negative 3-way simplex weights (sum=1) maximising mean fold AUC
+    of the rank-space blend.
+
+    Parameterises the simplex as (w1, w2) with w3 = 1 - w1 - w2. Returns
+    (best_weights, best_mean_auc, best_fold_aucs).
+    """
+    n = len(rank_oofs)
+    best_w = np.ones(n) / n
+    best_auc = -1.0
+    best_folds: list[float] = []
+    fold_idx = list(skf.split(np.zeros(len(y)), y))
+    steps = np.linspace(0.0, 1.0, n_grid)
+    for w1 in steps:
+        for w2 in steps:
+            w3 = 1.0 - w1 - w2
+            if w3 < -1e-9:
+                continue
+            w3 = max(w3, 0.0)
+            blend = w1 * rank_oofs[0] + w2 * rank_oofs[1] + w3 * rank_oofs[2]
+            fold_aucs = [auc(y[va], blend[va]) for _, va in fold_idx]
+            mean_auc = float(np.mean(fold_aucs))
+            if mean_auc > best_auc:
+                best_auc = mean_auc
+                best_w = np.array([w1, w2, w3])
+                best_folds = fold_aucs
+    return best_w, best_auc, best_folds
+
+
+def run_rank_blend_cv(
+    df: pd.DataFrame,
+    oof_a: Path | str | None = None,
+    oof_b: Path | str | None = None,
+    oof_c: Path | str | None = None,
+    *,
+    folds: int = 5,
+    seed: int = 42,
+    n_grid: int = 30,
+) -> RankBlendCvResult:
+    """3-way rank-space blend of pre-computed OOFs; grid-search simplex weights.
+
+    OOFs are aligned to `df` by `id`. Each OOF is converted to percentile ranks
+    (`rankdata/len`); weights are searched on the rank-space blend to maximise mean
+    fold AUC on `StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed)`.
+    The same weights are also applied to raw probabilities as a control comparison.
+    """
+    a_path = _resolve_oof(oof_a, RANK_BLEND_OOF_A)
+    b_path = _resolve_oof(oof_b, RANK_BLEND_OOF_B)
+    c_path = _resolve_oof(oof_c, RANK_BLEND_OOF_C)
+    y = encode_target(df[TARGET]).to_numpy()
+    ids = df[ID_COL].to_numpy()
+
+    def _load(path: Path) -> np.ndarray:
+        d = pd.read_csv(path).set_index(ID_COL).reindex(ids)
+        if d[TARGET].isna().any():
+            raise ValueError(f"OOF {path} is missing ids present in train")
+        return d[TARGET].to_numpy(dtype=float)
+
+    oofs = [_load(p) for p in (a_path, b_path, c_path)]
+    rank_oofs = [_to_percentile_rank(o) for o in oofs]
+    skf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed)
+    weights, _, best_folds = search_rank_blend_weights(rank_oofs, y, skf, n_grid=n_grid)
+    blend_oof = weights[0] * rank_oofs[0] + weights[1] * rank_oofs[1] + weights[2] * rank_oofs[2]
+    mean, std = mean_std(best_folds)
+    # Control: the same simplex weights applied to raw probabilities.
+    prob_blend = weights[0] * oofs[0] + weights[1] * oofs[1] + weights[2] * oofs[2]
+    prob_folds = [auc(y[va], prob_blend[va]) for _, va in skf.split(np.zeros(len(y)), y)]
+    prob_mean, prob_std = mean_std(prob_folds)
+    return RankBlendCvResult(
+        oof=blend_oof,
+        fold_aucs=best_folds,
+        mean=mean,
+        std=std,
+        weights=weights.tolist(),
+        oof_paths=[str(a_path), str(b_path), str(c_path)],
+        prob_fold_aucs=prob_folds,
+        prob_mean=prob_mean,
+        prob_std=prob_std,
+    )
+
+
+def save_rank_blend_run(df: pd.DataFrame, cv: RankBlendCvResult, out: Path | None = None) -> None:
+    """Write the rank-blended OOF and a cv.json payload (no fold models)."""
+
+    out = out or OUTPUTS
+    out.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame({ID_COL: df[ID_COL], TARGET: cv.oof}).to_csv(out / OOF_CSV.name, index=False)
+    payload = {
+        "strategy": "rank_blend",
+        "fold_aucs": cv.fold_aucs,
+        "mean": cv.mean,
+        "std": cv.std,
+        "cv": fmt_cv(cv.mean, cv.std),
+        "params": {
+            "weights": cv.weights,
+            "oof_a": cv.oof_paths[0],
+            "oof_b": cv.oof_paths[1],
+            "oof_c": cv.oof_paths[2],
+            "folds": len(cv.fold_aucs),
+            "prob_blend_cv": fmt_cv(cv.prob_mean, cv.prob_std),
+            "prob_blend_mean": cv.prob_mean,
+        },
+        "n": int(len(df)),
+        "folds": len(cv.fold_aucs),
+    }
+    (out / CV_JSON.name).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def log_rank_blend(
+    cv: RankBlendCvResult,
+    *,
+    folds: int,
+    note: str = "",
+    path: Path | None = None,
+) -> Path:
+    """Append a rank-blend chunk to EXPERIMENTS.md."""
+
+    w = cv.weights
+    title = f"3-model OOF rank-blend (w={w[0]:.3f}/{w[1]:.3f}/{w[2]:.3f}), {folds}-fold"
+    chunk = format_chunk(
+        title,
+        fmt_cv(cv.mean, cv.std),
+        takeaway=note or f"rank-blend {fmt_cv(cv.mean, cv.std)}; prob-blend control {fmt_cv(cv.prob_mean, cv.prob_std)}",
+    )
+    return append_chunk(chunk, path=path)
+
+
+def train_rank_blend(
+    df: pd.DataFrame,
+    oof_a: Path | str | None = None,
+    oof_b: Path | str | None = None,
+    oof_c: Path | str | None = None,
+    *,
+    folds: int = 5,
+    seed: int = 42,
+    log: bool = True,
+    note: str = "",
+    experiments_path: Path | None = None,
+    out: Path | None = None,
+    n_grid: int = 30,
+) -> RankBlendCvResult:
+    """3-way rank-space OOF blend, persist artifacts, optionally log EXPERIMENTS.md."""
+
+    cv = run_rank_blend_cv(df, oof_a, oof_b, oof_c, folds=folds, seed=seed, n_grid=n_grid)
+    save_rank_blend_run(df, cv, out=out)
+    if log:
+        log_rank_blend(cv, folds=folds, note=note, path=experiments_path)
+    print(f"CV AUC (rank-blend): {fmt_cv(cv.mean, cv.std)}")
+    print(f"  weights: a={cv.weights[0]:.4f} b={cv.weights[1]:.4f} c={cv.weights[2]:.4f}")
+    print(f"  prob-blend control: {fmt_cv(cv.prob_mean, cv.prob_std)}")
+    print("folds:", ", ".join(f"{a:.5f}" for a in cv.fold_aucs))
+    return cv

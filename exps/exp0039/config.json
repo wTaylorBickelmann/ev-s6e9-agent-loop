@@ -1,0 +1,25 @@
+{
+  "id": "exp0039",
+  "title": "rank-blend-3model",
+  "hypothesis": "Rank-space blending of the three best OOFs (exp0038 XGB, exp0026 LGBM, exp0029 CatBoost) with grid-searched simplex weights decorrelates model families and optimises ROC-AUC ordering directly, lifting CV beyond the 0.94567 floor where probability-space blending (s030) showed no lift.",
+  "parent": "exp0038",
+  "strategy": "rank_blend",
+  "train_args": [
+    "--strategy",
+    "rank_blend",
+    "--oof-a",
+    "exps/exp0038/oof.csv",
+    "--oof-b",
+    "exps/exp0026/oof.csv",
+    "--oof-c",
+    "exps/exp0029/oof.csv",
+    "--note",
+    "exp0039: 3-model OOF rank-blend (XGB exp0038 + LGBM exp0026 + CatBoost exp0029) with simplex weight search (n_grid=30)"
+  ],
+  "folds": 5,
+  "seed": 42,
+  "status": "pending",
+  "cv_mean": 0.9456695335482708,
+  "cv_std": 0.0006262333516169819,
+  "cv": "0.94567 \u00b1 0.00063"
+}

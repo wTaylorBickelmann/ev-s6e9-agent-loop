@@ -1,0 +1,21 @@
+{
+  "id": "exp0029",
+  "title": "catboost-5fold-baseline",
+  "hypothesis": "CatBoost's symmetric oblivious trees yield distinct split dynamics from depthwise XGBoost and leafwise LightGBM. Benchmarking a 5-fold CatBoost baseline on Deotte features (--freq --te) establishes standalone capacity and provides diverse OOF predictions for multi-GBDT ensembling.",
+  "parent": "exp0010",
+  "strategy": "catboost",
+  "train_args": [
+    "--strategy",
+    "catboost",
+    "--freq",
+    "--te",
+    "--note",
+    "exp0029: CatBoost 5-fold baseline on Deotte freq+TE features"
+  ],
+  "folds": 5,
+  "seed": 42,
+  "status": "pending",
+  "cv_mean": 0.9453601410949242,
+  "cv_std": 0.0006406139983595641,
+  "cv": "0.94536 \u00b1 0.00064"
+}

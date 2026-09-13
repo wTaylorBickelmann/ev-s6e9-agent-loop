@@ -1,0 +1,29 @@
+{
+  "id": "exp0025",
+  "title": "deotte-income-x-concern",
+  "hypothesis": "Multiplicative interaction (Annual_Income_USD/1e5) * Environmental_Concern_Level captures the affluent-green buyer demographic and lifts CV AUC beyond 0.94558.",
+  "parent": "exp0024",
+  "strategy": "deotte",
+  "train_args": [
+    "--strategy",
+    "deotte",
+    "--freq",
+    "--te",
+    "--seeds",
+    "42,43,44",
+    "--weight-search",
+    "--note",
+    "exp0025: +income_x_concern helper feature (affluent-green interaction)"
+  ],
+  "predict_args": [
+    "--strategy",
+    "deotte"
+  ],
+  "submit_message": "exp0025 deotte + income_x_concern",
+  "folds": 5,
+  "seed": 42,
+  "status": "kill",
+  "cv_mean": 0.9455679153809371,
+  "cv_std": 0.0006275934459285885,
+  "cv": "0.94557 \u00b1 0.00063"
+}

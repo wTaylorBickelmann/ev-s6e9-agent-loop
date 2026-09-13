@@ -1,0 +1,30 @@
+{
+  "id": "exp0043",
+  "title": "xgb-max-depth-8-on-s041-features",
+  "hypothesis": "Raising XGB max_depth from 6 to 8 on the s041 feature set (6 TEs income+commute m=2/5/20 + 5 helpers + 2 freq + raw) unlocks 7th/8th-order interactions among TE variants and helpers that depth 6 cannot represent; early_stopping_rounds=100 controls overfitting. Features and seeds identical to s041 (exp0041); only max_depth changes.",
+  "parent": "exp0041",
+  "strategy": "deotte",
+  "train_args": [
+    "--strategy",
+    "deotte",
+    "--freq",
+    "--te",
+    "--seeds",
+    "42,43,44,45,46,47,48,49,50,51",
+    "--weight-search",
+    "--override",
+    "max_depth=8",
+    "--note",
+    "s043 XGB max_depth=8 on s041 feature set"
+  ],
+  "predict_args": [
+    "--strategy",
+    "deotte"
+  ],
+  "submit_message": "s043 XGB max_depth=8 on s041 feature set",
+  "folds": 5,
+  "seed": 42,
+  "cv_mean": 0.9456648110074122,
+  "cv_std": 0.0006448898342924327,
+  "cv": "0.94566 \u00b1 0.00064"
+}

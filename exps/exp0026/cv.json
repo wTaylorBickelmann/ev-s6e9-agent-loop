@@ -1,0 +1,26 @@
+{
+  "fold_aucs": [
+    0.9444566151126016,
+    0.9450118660096177,
+    0.94620030543686,
+    0.9456133704414006,
+    0.9451707320013284
+  ],
+  "mean": 0.9452905778003616,
+  "std": 0.0005864019959275835,
+  "cv": "0.94529 \u00b1 0.00059",
+  "params": {
+    "objective": "binary",
+    "metric": "auc",
+    "learning_rate": 0.05,
+    "num_leaves": 31,
+    "n_estimators": 800,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "min_child_samples": 50,
+    "verbosity": -1,
+    "n_jobs": -1
+  },
+  "n": 668665,
+  "folds": 5
+}

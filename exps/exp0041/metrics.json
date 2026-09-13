@@ -1,0 +1,47 @@
+{
+  "id": "exp0041",
+  "cv_mean": 0.9457503683838414,
+  "cv_std": 0.0006415794771160752,
+  "cv": "0.94575 \u00b1 0.00064",
+  "fold_aucs": [
+    0.944843242379889,
+    0.9454317108915278,
+    0.9468009915876243,
+    0.945923245840914,
+    0.9457526512192516
+  ],
+  "strategy": "deotte",
+  "params": {
+    "objective": "binary:logistic",
+    "n_estimators": 3000,
+    "learning_rate": 0.05,
+    "max_depth": 6,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "tree_method": "hist",
+    "device": "cpu",
+    "eval_metric": "auc",
+    "early_stopping_rounds": 100,
+    "verbosity": 0,
+    "n_jobs": -1,
+    "seeds": [
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51
+    ],
+    "blend_weights": [
+      0.3103448275862069,
+      0.6551724137931034,
+      0.034482758620689724
+    ]
+  },
+  "status": "keep",
+  "lb": 0.88273
+}

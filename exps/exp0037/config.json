@@ -1,0 +1,28 @@
+{
+  "id": "exp0037",
+  "title": "multi-smoothing-te-income-m5-m20",
+  "hypothesis": "Adding a second TE column with m=5 (lower regularisation) alongside the existing m=20 gives XGB two bias-variance views of income\u2192target, lifting blend CV over the 0.94561 floor.",
+  "parent": "exp0036",
+  "strategy": "deotte",
+  "train_args": [
+    "--strategy",
+    "deotte",
+    "--freq",
+    "--te",
+    "--seeds",
+    "42,43,44,45,46",
+    "--weight-search",
+    "--note",
+    "exp0037: multi-smoothing TE income (m=5 + m=20) 5-seed blend + weight search"
+  ],
+  "predict_args": [
+    "--strategy",
+    "deotte"
+  ],
+  "submit_message": "exp0037 multi-smoothing TE income m5+m20",
+  "folds": 5,
+  "seed": 42,
+  "cv_mean": 0.9456623651147134,
+  "cv_std": 0.0006361557319203939,
+  "cv": "0.94566 \u00b1 0.00064"
+}

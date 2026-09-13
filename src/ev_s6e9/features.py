@@ -9,7 +9,7 @@ from sklearn.model_selection import StratifiedKFold
 
 from ev_s6e9.schema import CAT_COLS, FEATURE_COLS, ID_COL, NUM_COLS, TARGET, check_cols
 
-HELPER_COLS = ["worry_score", "chargers_total", "income_x_subsidy", "concern_x_subsidy"]
+HELPER_COLS = ["worry_score", "chargers_total", "income_x_subsidy", "concern_x_subsidy", "no_home_charge_x_high_anxiety"]
 RECIPE_COL = "recipe_score"
 FREQ_COLS = ["Annual_Income_USD", "Daily_Commute_km"]
 FREQ_SUFFIX = "_cnt"
@@ -39,6 +39,19 @@ def te_oof(
         mp, prior = te_fit(vals.iloc[tr], y[tr], m)
         out[va] = te_apply(vals.iloc[va], mp, prior)
     return out
+
+
+def te_oof_avg(
+    vals: pd.Series,
+    y: np.ndarray,
+    *,
+    seeds: tuple[int, ...] = (42, 43, 44),
+    folds: int = 5,
+    m: float = 20.0,
+) -> np.ndarray:
+    """Multi-seed averaged OOF TE: reduces encoding noise from inner fold assignment."""
+    results = [te_oof(vals, y, folds=folds, seed=s, m=m) for s in seeds]
+    return np.mean(results, axis=0).astype(np.float32)
 
 
 def encode_target(s: pd.Series) -> pd.Series:
@@ -151,12 +164,15 @@ class FeatureBuilder:
         concern = pd.to_numeric(df["Environmental_Concern_Level"], errors="coerce")
         subsidy = _yes(df["Subsidy_Available"])
         home_chg = _yes(df["Home_Charging_Possible"])
+        anxiety = df["Range_Anxiety_Level"].astype(str)
+
         return pd.DataFrame(
             {
                 "worry_score": commute - 5 * home - 5 * work - 150 * home_chg,
                 "chargers_total": home + work,
                 "income_x_subsidy": income * subsidy,
                 "concern_x_subsidy": concern * subsidy,
+                "no_home_charge_x_high_anxiety": (1.0 - home_chg) * anxiety.eq("High").astype(float),
             },
             index=df.index,
         )

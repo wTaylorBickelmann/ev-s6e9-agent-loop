@@ -47,6 +47,13 @@ def parse_agy_envelope(stdout: str) -> str:
     return str(data.get("response") or "")
 
 
+def _effort_unsupported(model) -> bool:
+    """True for models whose agy CLI rejects --effort (Claude, gpt-oss)."""
+    if not model:
+        return False
+    m = str(model).lower()
+    return ("claude" in m) or m.startswith("gpt-oss") or m.startswith("gpt-")
+
 def build_agy_cmd(cfg: dict, prompt: str) -> list[str]:
     """`--model` / `--effort` must precede `-p` or some agy versions drop them."""
     argv = [str(cfg.get("bin") or "agy")]
@@ -54,7 +61,10 @@ def build_agy_cmd(cfg: dict, prompt: str) -> list[str]:
     if model:
         argv += ["--model", str(model)]
     effort = cfg.get("effort")
-    if effort:
+    # --effort is only valid for Gemini-family models; Claude (opus/sonnet) and
+    # gpt-oss reject it with "invalid model selection". Skip it for those so a
+    # model switch doesn't silently fall back to DeepSeek.
+    if effort and not _effort_unsupported(model):
         argv += ["--effort", str(effort)]
     argv += ["--output-format", str(cfg.get("output_format") or "json")]
     timeout_flag = cfg.get("print_timeout")

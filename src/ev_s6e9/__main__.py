@@ -19,7 +19,10 @@ def _parser() -> argparse.ArgumentParser:
     d.add_argument("--synth", action="store_true", help="write schema-accurate fake CSVs instead")
 
     t = sub.add_parser("train", help="stratified CV + save OOF/models + append EXPERIMENTS.md")
-    t.add_argument("--strategy", choices=["lgbm", "deotte"], default="lgbm")
+    t.add_argument("--strategy", choices=["lgbm", "deotte", "ensemble", "catboost", "hgb", "rank_blend"], default="lgbm")
+    t.add_argument("--oof-a", default=None, help="first OOF csv for ensemble/rank_blend (default exps/exp0026/oof.csv)")
+    t.add_argument("--oof-b", default=None, help="second OOF csv for ensemble/rank_blend (default exps/exp0024/oof.csv)")
+    t.add_argument("--oof-c", default=None, help="third OOF csv for rank_blend (default exps/exp0029/oof.csv)")
     t.add_argument("--folds", type=int, default=5)
     t.add_argument("--seed", type=int, default=42)
     t.add_argument("--n-estimators", type=int, default=None)
@@ -29,6 +32,9 @@ def _parser() -> argparse.ArgumentParser:
     t.add_argument("--freq", action="store_true", help="add value-count features (Annual_Income_USD, Daily_Commute_km)")
     t.add_argument("--te", action="store_true", help="fold-safe target encoding of Annual_Income_USD")
     t.add_argument("--seeds", default=None, help="comma-separated model seeds for multi-seed blend (e.g. 42,43,44)")
+    t.add_argument("--weight-search", action="store_true", help="grid-search non-equal blend weights for m1/m2/m3")
+    t.add_argument("--override", action="append", default=[], metavar="KEY=VALUE",
+                   help="model param override (repeatable), e.g. --override max_depth=8")
 
     pr = sub.add_parser("predict", help="average fold models → outputs/submission.csv")
     pr.add_argument("--strategy", choices=["lgbm", "deotte"], default=None)
@@ -44,6 +50,16 @@ def _parser() -> argparse.ArgumentParser:
     b.add_argument("-o", "--out", default=None, help="output directory (default _site)")
     b.add_argument("--sample", action="store_true", help="force committed sample (skip data/raw)")
     return p
+
+
+def _coerce(value: str):
+    """Coerce a CLI override value to int/float when possible, else keep as str."""
+    for cast in (int, float):
+        try:
+            return cast(value)
+        except ValueError:
+            continue
+    return value
 
 
 def _need_train_csv(synth: bool):
@@ -84,10 +100,44 @@ def main(argv: list[str] | None = None) -> None:
 
         df = _need_train_csv(args.synth)
         ov = {}
+        for kv in args.override:
+            key, sep, val = kv.partition("=")
+            if not key or not sep:
+                sys.exit(f"bad --override {kv!r}; expected KEY=VALUE")
+            ov[key] = _coerce(val)
         if args.n_estimators is not None:
             ov["n_estimators"] = args.n_estimators
         if args.synth:
             ov.setdefault("n_estimators", 40)
+        if args.strategy == "ensemble":
+            from ev_s6e9.deotte import train_ensemble
+
+            train_ensemble(
+                df,
+                oof_a=args.oof_a,
+                oof_b=args.oof_b,
+                folds=args.folds,
+                seed=args.seed,
+                log=not args.no_log and not args.synth,
+                note=args.note,
+                experiments_path=EXPERIMENTS_MD,
+            )
+            return
+        if args.strategy == "rank_blend":
+            from ev_s6e9.deotte import train_rank_blend
+
+            train_rank_blend(
+                df,
+                oof_a=args.oof_a,
+                oof_b=args.oof_b,
+                oof_c=args.oof_c,
+                folds=args.folds,
+                seed=args.seed,
+                log=not args.no_log and not args.synth,
+                note=args.note,
+                experiments_path=EXPERIMENTS_MD,
+            )
+            return
         if args.strategy == "deotte":
             from ev_s6e9.data import load_test
             from ev_s6e9.deotte import train as train_deotte
@@ -109,10 +159,50 @@ def main(argv: list[str] | None = None) -> None:
                 model_overrides=ov or None,
                 freq=args.freq,
                 te=args.te,
+                weight_search=args.weight_search,
+            )
+        elif args.strategy == "catboost":
+            from ev_s6e9.data import load_test
+            from ev_s6e9.paths import TEST_CSV
+            from ev_s6e9.train import train_catboost
+
+            test_df = load_test() if TEST_CSV.exists() else None
+            train_catboost(
+                df,
+                folds=args.folds,
+                seed=args.seed,
+                log=not args.no_log and not args.synth,
+                note=args.note,
+                experiments_path=EXPERIMENTS_MD,
+                model_overrides=ov or None,
+                freq=args.freq,
+                te=args.te,
+                test=test_df,
+            )
+        elif args.strategy == "hgb":
+            from ev_s6e9.data import load_test
+            from ev_s6e9.paths import TEST_CSV
+            from ev_s6e9.train import train_hgb
+
+            test_df = load_test() if TEST_CSV.exists() else None
+            train_hgb(
+                df,
+                folds=args.folds,
+                seed=args.seed,
+                log=not args.no_log and not args.synth,
+                note=args.note,
+                experiments_path=EXPERIMENTS_MD,
+                model_overrides=ov or None,
+                freq=args.freq,
+                te=args.te,
+                test=test_df,
             )
         else:
+            from ev_s6e9.data import load_test
+            from ev_s6e9.paths import TEST_CSV
             from ev_s6e9.train import train
 
+            test_df = load_test() if TEST_CSV.exists() else None
             train(
                 df,
                 folds=args.folds,
@@ -121,6 +211,9 @@ def main(argv: list[str] | None = None) -> None:
                 note=args.note,
                 experiments_path=EXPERIMENTS_MD,
                 model_overrides=ov or None,
+                freq=args.freq,
+                te=args.te,
+                test=test_df,
             )
         eda(df)
         return

@@ -1,0 +1,26 @@
+{
+  "id": "exp0026",
+  "title": "lgbm-deotte-freq-te",
+  "hypothesis": "A standalone 5-fold LightGBM on the exp0010 Deotte freq+TE feature representation benchmarks non-XGB tree capacity on identical CV folds and yields standalone OOF for multi-family ensembling.",
+  "parent": "exp0024",
+  "strategy": "lgbm",
+  "train_args": [
+    "--strategy",
+    "lgbm",
+    "--freq",
+    "--te",
+    "--note",
+    "exp0026: LightGBM baseline on Deotte freq+TE features (5-fold seed 42)"
+  ],
+  "predict_args": [
+    "--strategy",
+    "lgbm"
+  ],
+  "submit_message": "exp0026 lgbm deotte freq+te",
+  "folds": 5,
+  "seed": 42,
+  "status": "scored",
+  "cv_mean": 0.9452905778003616,
+  "cv_std": 0.0005864019959275835,
+  "cv": "0.94529 \u00b1 0.00059"
+}

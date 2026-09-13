@@ -13,9 +13,18 @@ import pandas as pd
 from sklearn.model_selection import StratifiedKFold
 
 from ev_s6e9.experiments import append_chunk, format_chunk
-from ev_s6e9.features import split_xy
+from ev_s6e9.features import FeatureBuilder, TE_COL, encode_target, split_xy, te_apply, te_fit, te_oof
 from ev_s6e9.metrics import auc, fmt_cv, mean_std
-from ev_s6e9.model import DEFAULTS, make_model, short_params
+from ev_s6e9.model import (
+    CB_DEFAULTS,
+    CB_FIT_KWARGS,
+    DEFAULTS,
+    HGB_DEFAULTS,
+    make_catboost_model,
+    make_hgb_model,
+    make_model,
+    short_params,
+)
 from ev_s6e9.paths import CV_JSON, OOF_CSV, OUTPUTS
 from ev_s6e9.schema import ID_COL, TARGET
 
@@ -40,34 +49,121 @@ def run_cv(
     seed: int = 42,
     early_stopping: int = 50,
     model_overrides: dict | None = None,
+    freq: bool = False,
+    te: bool = False,
+    test: pd.DataFrame | None = None,
 ) -> CvResult:
-    """Stratified LightGBM CV with early stopping; fill OOF and importances."""
-    x, y = split_xy(df)
-    yv = y.to_numpy()
+    """Stratified LightGBM CV with early stopping; fill OOF and importances.
+
+    When `freq` or `te` is set, features come from the Deotte FeatureBuilder
+    (fold-safe target encoding, matching the `deotte` strategy); otherwise the
+    raw `split_xy` representation is used.
+    """
+    y = encode_target(df[TARGET]).to_numpy()
+    use_deotte = freq or te
+    fb = FeatureBuilder(freq=freq, te=te).fit(df, test) if use_deotte else None
+    x_raw = None if use_deotte else split_xy(df)[0]
     oof = np.zeros(len(y), dtype=float)
     skf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed)
     models, scores, imps = [], [], []
     overrides = dict(model_overrides or {})
-    for i, (tr, va) in enumerate(skf.split(x, yv)):
+    last_cols: list[str] = []
+    for i, (tr, va) in enumerate(skf.split(df, y)):
+        if use_deotte:
+            x_tr = fb.transform(df.iloc[tr])
+            x_va = fb.transform(df.iloc[va])
+            if fb.te:
+                v_tr = pd.to_numeric(df.iloc[tr][TE_COL], errors="coerce")
+                v_va = pd.to_numeric(df.iloc[va][TE_COL], errors="coerce")
+                mp, prior = te_fit(v_tr, y[tr])
+                x_tr[TE_COL + "_te"] = te_oof(v_tr, y[tr], seed=seed)
+                x_va[TE_COL + "_te"] = te_apply(v_va, mp, prior)
+                mp5, prior5 = te_fit(v_tr, y[tr], m=5.0)
+                x_tr[TE_COL + "_te_m5"] = te_oof(v_tr, y[tr], seed=seed, m=5.0)
+                x_va[TE_COL + "_te_m5"] = te_apply(v_va, mp5, prior5)
+                mp2, prior2 = te_fit(v_tr, y[tr], m=2.0)
+                x_tr[TE_COL + "_te_m2"] = te_oof(v_tr, y[tr], seed=seed, m=2.0)
+                x_va[TE_COL + "_te_m2"] = te_apply(v_va, mp2, prior2)
+                c_tr = pd.to_numeric(df.iloc[tr]["Daily_Commute_km"], errors="coerce")
+                c_va = pd.to_numeric(df.iloc[va]["Daily_Commute_km"], errors="coerce")
+                cm, cp = te_fit(c_tr, y[tr])
+                x_tr["Daily_Commute_km_te"] = te_oof(c_tr, y[tr], seed=seed)
+                x_va["Daily_Commute_km_te"] = te_apply(c_va, cm, cp)
+                cm5, cp5 = te_fit(c_tr, y[tr], m=5.0)
+                x_tr["Daily_Commute_km_te_m5"] = te_oof(c_tr, y[tr], seed=seed, m=5.0)
+                x_va["Daily_Commute_km_te_m5"] = te_apply(c_va, cm5, cp5)
+                cm2, cp2 = te_fit(c_tr, y[tr], m=2.0)
+                x_tr["Daily_Commute_km_te_m2"] = te_oof(c_tr, y[tr], seed=seed, m=2.0)
+                x_va["Daily_Commute_km_te_m2"] = te_apply(c_va, cm2, cp2)
+        else:
+            x_tr = x_raw.iloc[tr]
+            x_va = x_raw.iloc[va]
+        last_cols = list(x_va.columns)
         m = make_model(seed=seed + i, **overrides)
         m.fit(
-            x.iloc[tr],
-            yv[tr],
-            eval_X=x.iloc[va],
-            eval_y=yv[va],
+            x_tr,
+            y[tr],
+            eval_X=x_va,
+            eval_y=y[va],
             callbacks=[
                 lgb.early_stopping(early_stopping, verbose=False),
                 lgb.log_evaluation(0),
             ],
         )
-        p = m.predict_proba(x.iloc[va])[:, 1]
+        p = m.predict_proba(x_va)[:, 1]
         oof[va] = p
-        scores.append(auc(yv[va], p))
+        scores.append(auc(y[va], p))
         models.append(m)
         imps.append(m.feature_importances_)
     mean, std = mean_std(scores)
-    imp = pd.DataFrame(imps, columns=list(x.columns)).mean(axis=0).sort_values(ascending=False)
+    imp = pd.DataFrame(imps, columns=last_cols).mean(axis=0).sort_values(ascending=False)
     params = {**DEFAULTS, **overrides}
+    return CvResult(oof, scores, mean, std, models, imp.to_frame("importance"), params)
+
+
+def run_cv_catboost(
+    df: pd.DataFrame,
+    *,
+    folds: int = 5,
+    seed: int = 42,
+    model_overrides: dict | None = None,
+    freq: bool = True,
+    te: bool = True,
+    test: pd.DataFrame | None = None,
+) -> CvResult:
+    """Stratified CatBoost CV on Deotte features (freq + TE)."""
+    y = encode_target(df[TARGET]).to_numpy()
+    fb = FeatureBuilder(freq=freq, te=te).fit(df, test)
+    oof = np.zeros(len(y), dtype=float)
+    skf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed)
+    models, scores, imps = [], [], []
+    overrides = dict(model_overrides or {})
+    last_cols: list[str] = []
+    for i, (tr, va) in enumerate(skf.split(df, y)):
+        x_tr = fb.transform(df.iloc[tr])
+        x_va = fb.transform(df.iloc[va])
+        if fb.te:
+            v_tr = pd.to_numeric(df.iloc[tr][TE_COL], errors="coerce")
+            v_va = pd.to_numeric(df.iloc[va][TE_COL], errors="coerce")
+            mp, prior = te_fit(v_tr, y[tr])
+            x_tr[TE_COL + "_te"] = te_oof(v_tr, y[tr], seed=seed)
+            x_va[TE_COL + "_te"] = te_apply(v_va, mp, prior)
+        last_cols = list(x_va.columns)
+        m = make_catboost_model(seed=seed + i, **overrides)
+        m.fit(
+            x_tr,
+            y[tr],
+            eval_set=(x_va, y[va]),
+            **CB_FIT_KWARGS,
+        )
+        p = m.predict_proba(x_va)[:, 1]
+        oof[va] = p
+        scores.append(auc(y[va], p))
+        models.append(m)
+        imps.append(m.feature_importances_)
+    mean, std = mean_std(scores)
+    imp = pd.DataFrame(imps, columns=last_cols).mean(axis=0).sort_values(ascending=False)
+    params = {**CB_DEFAULTS, **overrides}
     return CvResult(oof, scores, mean, std, models, imp.to_frame("importance"), params)
 
 
@@ -104,7 +200,9 @@ def log_experiment(
 ) -> Path:
     """Append a LightGBM chunk to EXPERIMENTS.md."""
 
-    title = f"LightGBM {short_params(cv.params)}, raw+charging_total, {folds}-fold"
+    cols = list(cv.importances.index) if cv.importances is not None else []
+    feat = "Deotte freq+TE" if (any(c.endswith("_cnt") for c in cols) or "Annual_Income_USD_te" in cols) else "raw+charging_total"
+    title = f"LightGBM {short_params(cv.params)}, {feat}, {folds}-fold"
     chunk = format_chunk(
         title,
         fmt_cv(cv.mean, cv.std),
@@ -123,12 +221,126 @@ def train(
     experiments_path: Path | None = None,
     out: Path | None = None,
     model_overrides: dict | None = None,
+    freq: bool = False,
+    te: bool = False,
+    test: pd.DataFrame | None = None,
 ) -> CvResult:
     """Run LightGBM CV, persist artifacts, optionally append EXPERIMENTS.md."""
-    cv = run_cv(df, folds=folds, seed=seed, model_overrides=model_overrides)
+    cv = run_cv(
+        df,
+        folds=folds,
+        seed=seed,
+        model_overrides=model_overrides,
+        freq=freq,
+        te=te,
+        test=test,
+    )
     save_run(df, cv, out=out)
     if log:
         log_experiment(cv, folds=folds, note=note, path=experiments_path)
     print(f"CV AUC: {fmt_cv(cv.mean, cv.std)}")
+    print("folds:", ", ".join(f"{a:.5f}" for a in cv.fold_aucs))
+    return cv
+
+
+def train_catboost(
+    df: pd.DataFrame,
+    *,
+    folds: int = 5,
+    seed: int = 42,
+    log: bool = True,
+    note: str = "",
+    experiments_path: Path | None = None,
+    out: Path | None = None,
+    model_overrides: dict | None = None,
+    freq: bool = True,
+    te: bool = True,
+    test: pd.DataFrame | None = None,
+) -> CvResult:
+    """Run CatBoost CV on Deotte features, persist artifacts, optionally log."""
+    cv = run_cv_catboost(
+        df,
+        folds=folds,
+        seed=seed,
+        model_overrides=model_overrides,
+        freq=freq,
+        te=te,
+        test=test,
+    )
+    save_run(df, cv, out=out)
+    if log:
+        log_experiment(cv, folds=folds, note=note, path=experiments_path)
+    print(f"CV AUC (CatBoost): {fmt_cv(cv.mean, cv.std)}")
+    print("folds:", ", ".join(f"{a:.5f}" for a in cv.fold_aucs))
+    return cv
+
+
+def run_cv_hgb(
+    df: pd.DataFrame,
+    *,
+    folds: int = 5,
+    seed: int = 42,
+    model_overrides: dict | None = None,
+    freq: bool = True,
+    te: bool = True,
+    test: pd.DataFrame | None = None,
+) -> CvResult:
+    """Stratified HistGradientBoosting CV on Deotte features (freq + TE)."""
+    y = encode_target(df[TARGET]).to_numpy()
+    fb = FeatureBuilder(freq=freq, te=te).fit(df, test)
+    oof = np.zeros(len(y), dtype=float)
+    skf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed)
+    models, scores = [], []
+    overrides = dict(model_overrides or {})
+    last_cols: list[str] = []
+    for i, (tr, va) in enumerate(skf.split(df, y)):
+        x_tr = fb.transform(df.iloc[tr])
+        x_va = fb.transform(df.iloc[va])
+        if fb.te:
+            v_tr = pd.to_numeric(df.iloc[tr][TE_COL], errors="coerce")
+            v_va = pd.to_numeric(df.iloc[va][TE_COL], errors="coerce")
+            mp, prior = te_fit(v_tr, y[tr])
+            x_tr[TE_COL + "_te"] = te_oof(v_tr, y[tr], seed=seed)
+            x_va[TE_COL + "_te"] = te_apply(v_va, mp, prior)
+        last_cols = list(x_va.columns)
+        m = make_hgb_model(seed=seed + i, **overrides)
+        m.fit(x_tr, y[tr])
+        p = m.predict_proba(x_va)[:, 1]
+        oof[va] = p
+        scores.append(auc(y[va], p))
+        models.append(m)
+    mean, std = mean_std(scores)
+    params = {**HGB_DEFAULTS, **overrides}
+    return CvResult(oof, scores, mean, std, models, None, params)
+
+
+def train_hgb(
+    df: pd.DataFrame,
+    *,
+    folds: int = 5,
+    seed: int = 42,
+    log: bool = True,
+    note: str = "",
+    experiments_path: Path | None = None,
+    out: Path | None = None,
+    model_overrides: dict | None = None,
+    freq: bool = True,
+    te: bool = True,
+    test: pd.DataFrame | None = None,
+) -> CvResult:
+    """Run HGB CV on Deotte features, persist artifacts, optionally log."""
+    cv = run_cv_hgb(
+        df,
+        folds=folds,
+        seed=seed,
+        model_overrides=model_overrides,
+        freq=freq,
+        te=te,
+        test=test,
+    )
+    save_run(df, cv, out=out)
+    if log:
+        log_experiment(cv, folds=folds, note=note, path=experiments_path)
+    print(f"CV AUC (HGB): {fmt_cv(cv.mean, cv.std)}")
     print("folds:", ", ".join(f"{a:.5f}" for a in cv.fold_aucs))
     return cv

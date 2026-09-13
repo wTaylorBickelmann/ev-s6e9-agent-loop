@@ -1,0 +1,30 @@
+{
+  "id": "exp0041",
+  "title": "triple-smoothing-te-commute-m2-m5-m20",
+  "hypothesis": "Applying the proven multi-smoothing TE pattern (m=20/m=5/m=2) to Daily_Commute_km adds value-specific target rates at three regularisation levels, orthogonal to the numeric commute value and the freq count, lifting blend CV over the 0.94569 floor (s040).",
+  "parent": "exp0040",
+  "strategy": "deotte",
+  "train_args": [
+    "--strategy",
+    "deotte",
+    "--freq",
+    "--te",
+    "--seeds",
+    "42,43,44,45,46,47,48,49,50,51",
+    "--weight-search",
+    "--note",
+    "s041 +commute triple-TE m=2+m=5+m=20"
+  ],
+  "predict_args": [
+    "--strategy",
+    "deotte"
+  ],
+  "submit_message": "s041 triple-smoothing TE commute m2+m5+m20",
+  "folds": 5,
+  "seed": 42,
+  "cv_mean": 0.9457503683838414,
+  "cv_std": 0.0006415794771160752,
+  "cv": "0.94575 \u00b1 0.00064",
+  "status": "keep",
+  "lb": 0.88273
+}

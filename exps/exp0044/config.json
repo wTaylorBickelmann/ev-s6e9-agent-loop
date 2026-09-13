@@ -1,0 +1,25 @@
+{
+  "id": "exp0044",
+  "title": "multi-seed-averaged-te-encoding",
+  "hypothesis": "Averaging TE OOF across 3 inner KFold seeds (42,43,44) reduces encoding noise for medium-count income/commute values, lifting blend CV over the 0.94575 floor (s041).",
+  "parent": "exp0041",
+  "strategy": "deotte",
+  "train_args": [
+    "--strategy",
+    "deotte",
+    "--freq",
+    "--te",
+    "--seeds",
+    "42,43,44,45,46,47,48,49,50,51",
+    "--weight-search",
+    "--note",
+    "s044 multi-seed averaged TE (3 inner seeds 42/43/44) on s041 feature set"
+  ],
+  "predict_args": [
+    "--strategy",
+    "deotte"
+  ],
+  "submit_message": "s044 multi-seed averaged TE encoding",
+  "folds": 5,
+  "seed": 42
+}

@@ -1,0 +1,21 @@
+{
+  "id": "exp0030",
+  "cv_mean": 0.9455834631167359,
+  "cv_std": 0.0006208314858217737,
+  "cv": "0.94558 \u00b1 0.00062",
+  "fold_aucs": [
+    0.9446782095627256,
+    0.9452996385119569,
+    0.9465385093800094,
+    0.9459097867764399,
+    0.945491171352548
+  ],
+  "strategy": "ensemble",
+  "params": {
+    "alpha": 0.14,
+    "oof_a": "/Users/will/Documents/code_projects/ev-s6e9-agent-loop/exps/exp0029/oof.csv",
+    "oof_b": "/Users/will/Documents/code_projects/ev-s6e9-agent-loop/exps/exp0024/oof.csv",
+    "folds": 5
+  },
+  "status": "scored"
+}

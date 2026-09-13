@@ -1,0 +1,22 @@
+{
+  "id": "exp0030",
+  "title": "ensemble-catboost-deotte",
+  "hypothesis": "CatBoost's symmetric oblivious trees produce prediction error patterns distinct from depthwise XGBoost. Grid-searching an optimal linear blend weight alpha between exp0029 CatBoost OOF and exp0024 3-seed Deotte XGB blend will improve CV AUC beyond the 0.94558 floor.",
+  "parent": "exp0029",
+  "strategy": "ensemble",
+  "train_args": [
+    "--strategy",
+    "ensemble",
+    "--oof-a",
+    "exps/exp0029/oof.csv",
+    "--oof-b",
+    "exps/exp0024/oof.csv",
+    "--note",
+    "exp0030: ensemble exp0029 CatBoost + exp0024 Deotte 3-seed XGB via OOF weight search"
+  ],
+  "folds": 5,
+  "seed": 42,
+  "cv_mean": 0.9455834631167359,
+  "cv_std": 0.0006208314858217737,
+  "cv": "0.94558 \u00b1 0.00062"
+}

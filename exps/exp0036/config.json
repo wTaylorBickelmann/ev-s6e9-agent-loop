@@ -1,0 +1,28 @@
+{
+  "id": "exp0036",
+  "title": "5-seed-blend-clean-s031-features",
+  "hypothesis": "Restoring the clean s031 5-helper feature set (removing the never-rolled-back commute_per_charger / income_trailing_zeros / income_last_digit) and expanding the Deotte blend from 3 seeds (42-44) to 5 seeds (42-46) with weight search reduces both feature noise and model variance, lifting CV over the 0.94559 floor.",
+  "parent": "exp0031",
+  "strategy": "deotte",
+  "train_args": [
+    "--strategy",
+    "deotte",
+    "--freq",
+    "--te",
+    "--seeds",
+    "42,43,44,45,46",
+    "--weight-search",
+    "--note",
+    "exp0036: 5-seed (42-46) Deotte blend on clean s031 5-helper feature set + weight search"
+  ],
+  "predict_args": [
+    "--strategy",
+    "deotte"
+  ],
+  "submit_message": "exp0036 5-seed Deotte blend on clean s031 features",
+  "folds": 5,
+  "seed": 42,
+  "cv_mean": 0.9456057347630317,
+  "cv_std": 0.0006256175951852005,
+  "cv": "0.94561 \u00b1 0.00063"
+}

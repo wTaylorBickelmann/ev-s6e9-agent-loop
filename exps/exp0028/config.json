@@ -1,0 +1,26 @@
+{
+  "id": "exp0028",
+  "title": "deotte-commute-x-anxiety",
+  "hypothesis": "Range anxiety in EV adoption is acutely operationalized by daily driving distance. Adding a commute_x_anxiety interaction helper (Daily_Commute_km * [Range_Anxiety_Level == High]) to FeatureBuilder informs the trees that High range anxiety suppresses purchase probability primarily when Daily_Commute_km is large, lifting CV beyond 0.94558.",
+  "parent": "exp0010",
+  "strategy": "deotte",
+  "train_args": [
+    "--strategy",
+    "deotte",
+    "--freq",
+    "--te",
+    "--note",
+    "exp0028: +commute_x_anxiety helper (commute * High range anxiety)"
+  ],
+  "predict_args": [
+    "--strategy",
+    "deotte"
+  ],
+  "submit_message": "exp0028 deotte + commute_x_anxiety",
+  "folds": 5,
+  "seed": 42,
+  "status": "kill",
+  "cv_mean": 0.9455108595558974,
+  "cv_std": 0.0006358019478564759,
+  "cv": "0.94551 \u00b1 0.00064"
+}

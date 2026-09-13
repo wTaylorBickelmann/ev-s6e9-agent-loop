@@ -1,0 +1,21 @@
+{
+  "id": "exp0032",
+  "title": "hgb-deotte-baseline",
+  "hypothesis": "Standalone sklearn HistGradientBoostingClassifier on Deotte features (--freq --te) benchmarks native sklearn GBDT capacity against XGB/LGBM/CatBoost.",
+  "parent": "exp0010",
+  "strategy": "hgb",
+  "train_args": [
+    "--strategy",
+    "hgb",
+    "--freq",
+    "--te",
+    "--note",
+    "exp0032: HGB baseline on Deotte freq+TE features"
+  ],
+  "folds": 5,
+  "seed": 42,
+  "status": "scored",
+  "cv_mean": 0.9430803904758814,
+  "cv_std": 0.0006647553829396362,
+  "cv": "0.94308 \u00b1 0.00066"
+}

@@ -1,0 +1,28 @@
+{
+  "id": "exp0040",
+  "title": "triple-smoothing-te-income-m2-m5-m20",
+  "hypothesis": "Adding a third TE column with m=2 (near-zero smoothing) alongside m=5 and m=20 gives XGB three bias-variance views of income->target, capturing fine-grained value-specific rates that complement the medium and heavy views, lifting blend CV over the 0.94567 floor.",
+  "parent": "exp0038",
+  "strategy": "deotte",
+  "train_args": [
+    "--strategy",
+    "deotte",
+    "--freq",
+    "--te",
+    "--seeds",
+    "42,43,44,45,46,47,48,49,50,51",
+    "--weight-search",
+    "--note",
+    "s040 triple-TE m=2+m=5+m=20"
+  ],
+  "predict_args": [
+    "--strategy",
+    "deotte"
+  ],
+  "submit_message": "s040 triple-smoothing TE income m2+m5+m20",
+  "folds": 5,
+  "seed": 42,
+  "cv_mean": 0.9456853485627722,
+  "cv_std": 0.0006224141484781498,
+  "cv": "0.94569 \u00b1 0.00062"
+}
