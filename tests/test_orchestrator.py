@@ -70,12 +70,14 @@ def test_finish_run_submits_fail_with_valid_cv(settings, work, monkeypatch):
     def fake_submit(_root, exp_id, **kwargs):
         called["exp"] = exp_id
         called["eps"] = kwargs.get("eps")
+        called["exclude_candidate"] = kwargs.get("exclude_candidate")
         return 0
 
     monkeypatch.setattr("loop.orchestrator.submit_if_improved", fake_submit)
     Loop(settings, dry_run=False).finish_run(RunResult("s041", "fail", cv=0.94575))
     assert called["exp"] == "exp0041"
     assert called["eps"] == settings.submit_eps
+    assert called["exclude_candidate"] is True
     row = read_rows(history_path(work))[-1]
     assert row.strategy_id == "s041"
     assert row.status == "fail"

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 from pathlib import Path
@@ -72,6 +73,13 @@ def _boom(*_a, **_k):
     """Fail if predict/submit/git/kaggle would have been invoked."""
 
     raise AssertionError("subprocess should not run on dry-run / unit paths")
+
+
+def test_scripts_wrapper_is_valid_python():
+    """The scripts/ entry point must parse (module docstring must stay one string)."""
+
+    src = Path(__file__).resolve().parents[1] / "scripts" / "submit_if_improved.py"
+    ast.parse(src.read_text(encoding="utf-8"))
 
 
 def test_beats_and_decide_eps():
@@ -272,6 +280,39 @@ def test_dry_run_kill_when_csv_best_is_higher(tmp_path: Path, capsys):
     assert rc == EXIT_KILL
     assert "kill" in out
     assert "csv:s041" in out
+
+
+def test_dry_run_kill_when_cv_equals_csv_best(tmp_path: Path, capsys):
+    """Equal to the CSV-best is not an improvement (higher ROC AUC must win)."""
+
+    append_row(
+        history_path(tmp_path),
+        HistoryRow(strategy_id="s041", cv=0.94575, status="ok", commit="ccc"),
+    )
+    _write_exp(tmp_path, "exp0010", cv=0.94552, status="keep")
+    _write_exp(tmp_path, "exp0041", cv=0.94575, status="keep")
+    rc = run(tmp_path, "exp0041", dry_run=True, run_cmd=_boom)
+    out = capsys.readouterr().out
+    assert rc == EXIT_KILL
+    assert "kill" in out
+    assert "csv:s041" in out
+    assert "0.94575" in out
+    assert "would submit" not in out
+
+
+def test_dry_run_keep_when_excluding_just_recorded_csv_best(tmp_path: Path, capsys):
+    """Orchestrator: a just-appended candidate is not compared against itself."""
+
+    append_row(
+        history_path(tmp_path),
+        HistoryRow(strategy_id="s041", cv=0.94575, status="fail", commit="ddd"),
+    )
+    _write_exp(tmp_path, "exp0041", cv=0.94575, status="scored")
+    rc = run(tmp_path, "exp0041", dry_run=True, exclude_candidate=True, run_cmd=_boom)
+    out = capsys.readouterr().out
+    assert rc == EXIT_OK
+    assert "keep" in out
+    assert "would submit" in out
 
 
 def test_dry_run_keep_prints_without_submit(tmp_path: Path, capsys):

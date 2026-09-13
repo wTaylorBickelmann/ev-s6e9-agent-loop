@@ -208,6 +208,7 @@ class Loop:
             self.settings.root,
             exp_id,
             eps=self.settings.submit_eps,
+            exclude_candidate=True,
         )
         log(f"submit-if-improved {exp_id} rc={rc} (status={result.status} cv={result.cv})")
 

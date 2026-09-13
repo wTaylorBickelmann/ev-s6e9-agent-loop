@@ -662,11 +662,17 @@ def run(
     poll_timeout: float = DEFAULT_POLL_S,
     poll_interval: float = DEFAULT_POLL_INTERVAL_S,
     message: str | None = None,
+    exclude_candidate: bool = False,
     run_cmd=subprocess.run,
     sleep=time.sleep,
     clock=time.monotonic,
 ) -> int:
-    """Execute the gate. Return 0 on keep, 1 on kill, 2 on setup/submit/git errors."""
+    """Execute the gate. Return 0 on keep, 1 on kill, 2 on setup/submit/git errors.
+
+    By default the candidate is compared to the true CSV-best (higher ROC AUC).
+    ``exclude_candidate`` skips the candidate's own history row so a just-recorded
+    orchestrator run can still submit when it is the new best.
+    """
 
     try:
         exp_dir = resolve_exp(root, exp)
@@ -686,13 +692,17 @@ def run(
         print(exc, file=sys.stderr)
         return EXIT_ERROR
 
+    exclude = exp_id if exclude_candidate else None
     if gate == "cv":
-        verdict = decide(cv, best_keep_score(root, kind="cv", exclude=exp_id), eps=eps)
+        # CLI / dry-run: compare against the true CSV-best (higher ROC AUC).
+        # Equal to the board is not an improvement. The orchestrator passes
+        # exclude_candidate=True so a just-appended row is not compared to itself.
+        verdict = decide(cv, best_keep_score(root, kind="cv", exclude=exclude), eps=eps)
         print(verdict.summary(), flush=True)
         if not verdict.keep:
             return EXIT_KILL
     else:
-        best_lb = best_keep_score(root, kind="lb", exclude=exp_id)
+        best_lb = best_keep_score(root, kind="lb", exclude=exclude)
         print(
             f"gate=lb: will submit {exp_id} (CV={cv:.5f}) then compare public LB "
             f"to {best_lb.source} {best_lb.value:.5f} + eps={eps:g}",
@@ -745,7 +755,7 @@ def run(
         if lb is None:
             print("kill: LB pending — cannot confirm improve; not committing", flush=True)
             return EXIT_KILL
-        verdict = decide(lb, best_keep_score(root, kind="lb", exclude=exp_id), eps=eps)
+        verdict = decide(lb, best_keep_score(root, kind="lb", exclude=exclude), eps=eps)
         print(verdict.summary(), flush=True)
         if not verdict.keep:
             return EXIT_KILL
