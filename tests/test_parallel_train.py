@@ -62,7 +62,14 @@ def test_thread_pool_matches_sequential_oof_auc(monkeypatch):
     monkeypatch.delenv("EV_S6E9_TRAIN_WORKERS", raising=False)
     tr = synth(80, seed=1, target=True)
     te = synth(20, seed=2, target=False, start_id=10_000)
-    kw = dict(folds=2, fold_seed=42, seeds=[42, 43], freq=True, te=True, model_overrides={"n_jobs": -1})
+    kw = dict(
+        folds=2,
+        fold_seed=42,
+        seeds=[42, 43],
+        freq=True,
+        te=True,
+        model_overrides={"n_jobs": -1},
+    )
     seq = run_cv_multi_seed(tr, te, max_workers=1, **kw)
     par = run_cv_multi_seed(tr, te, max_workers=4, backend="thread", **kw)
     np.testing.assert_allclose(seq.oof, par.oof, atol=1e-12)
