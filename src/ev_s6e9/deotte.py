@@ -1,4 +1,8 @@
-"""Deotte Fable 5.1: 3-model XGB blend (baseline, base_margin, recipe_feature)."""
+"""Deotte Fable 5.1: 3-model XGB blend (baseline, base_margin, recipe_feature).
+
+Independent (seed, variant) CVs run in a process pool. Per-worker ``n_jobs`` is
+capped so workers × threads ≈ CPU count; a single worker still uses ``n_jobs=-1``.
+"""
 
 from __future__ import annotations
 
@@ -6,6 +10,7 @@ import json
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
+from typing import Any
 
 import joblib
 import numpy as np
@@ -16,6 +21,7 @@ from ev_s6e9.experiments import append_chunk, format_chunk
 from ev_s6e9.features import FeatureBuilder, TE_COL, encode_target, te_apply, te_fit, te_oof, te_oof_avg
 from ev_s6e9.metrics import auc, fmt_cv, mean_std
 from ev_s6e9.model import XGB_DEFAULTS, make_xgb_model, short_xgb_params
+from ev_s6e9.parallel import apply_thread_cap, map_cv_jobs, per_worker_n_jobs, resolve_max_workers
 from ev_s6e9.paths import CV_JSON, OOF_CSV, OUTPUTS, ROOT
 from ev_s6e9.schema import ID_COL, TARGET
 
@@ -209,6 +215,77 @@ def run_variant_cv(
     return VariantCv(oof, scores, mean, std, models)
 
 
+# Fitted FeatureBuilder + train frame, set once per worker (do not refit).
+_WORKER: dict[str, Any] = {}
+
+
+@dataclass(frozen=True)
+class _VariantJob:
+    """One independent (model_seed, variant) CV unit for the process pool."""
+
+    model_seed: int
+    variant: str
+    folds: int
+    fold_seed: int
+    overrides: dict
+
+
+def _init_variant_worker(train: pd.DataFrame, fb: FeatureBuilder) -> None:
+    """Share the already-fitted FeatureBuilder and train frame with this worker."""
+
+    _WORKER["train"] = train
+    _WORKER["fb"] = fb
+
+
+def _run_variant_job(job: _VariantJob) -> tuple[int, str, VariantCv]:
+    """Run one (seed, variant) CV in a worker using the shared fitted builder."""
+
+    vc = run_variant_cv(
+        _WORKER["train"],
+        _WORKER["fb"],
+        DeotteVariant(job.variant),
+        folds=job.folds,
+        seed=job.fold_seed,
+        model_seed=job.model_seed,
+        model_overrides=job.overrides,
+    )
+    return job.model_seed, job.variant, vc
+
+
+def _run_seed_variants(
+    train: pd.DataFrame,
+    fb: FeatureBuilder,
+    *,
+    seeds: list[int],
+    folds: int,
+    fold_seed: int,
+    model_overrides: dict | None,
+    max_workers: int | None,
+    backend: str | None = None,
+) -> dict[int, dict[str, VariantCv]]:
+    """Fit every (seed, variant) pair; sequential when only one worker is used."""
+
+    n_workers = resolve_max_workers(len(seeds) * len(DeotteVariant), max_workers)
+    capped = apply_thread_cap(model_overrides, per_worker_n_jobs(n_workers))
+    jobs = [
+        _VariantJob(model_seed=s, variant=v.value, folds=folds, fold_seed=fold_seed, overrides=capped)
+        for s in seeds
+        for v in DeotteVariant
+    ]
+    mapped = map_cv_jobs(
+        _run_variant_job,
+        jobs,
+        max_workers=max_workers,
+        initializer=_init_variant_worker,
+        initargs=(train, fb),
+        backend=backend,
+    )
+    out: dict[int, dict[str, VariantCv]] = {s: {} for s in seeds}
+    for model_seed, variant, vc in mapped:
+        out[model_seed][variant] = vc
+    return out
+
+
 def run_cv(
     train: pd.DataFrame,
     test: pd.DataFrame | None = None,
@@ -218,15 +295,23 @@ def run_cv(
     model_overrides: dict | None = None,
     freq: bool = False,
     te: bool = False,
+    max_workers: int | None = None,
+    backend: str | None = None,
 ) -> DeotteCvResult:
-    """Fit FeatureBuilder, run m1/m2/m3, return the equal-weight blend."""
+    """Fit FeatureBuilder once, run m1/m2/m3 (possibly in parallel), blend equally."""
     fb = FeatureBuilder(freq=freq, te=te).fit(train, test)
-    variants: dict[str, VariantCv] = {}
-    oofs = []
-    for v in DeotteVariant:
-        vc = run_variant_cv(train, fb, v, folds=folds, seed=seed, model_overrides=model_overrides)
-        variants[v.value] = vc
-        oofs.append(vc.oof)
+    by_seed = _run_seed_variants(
+        train,
+        fb,
+        seeds=[seed],
+        folds=folds,
+        fold_seed=seed,
+        model_overrides=model_overrides,
+        max_workers=max_workers,
+        backend=backend,
+    )
+    variants = {v.value: by_seed[seed][v.value] for v in DeotteVariant}
+    oofs = [variants[v.value].oof for v in DeotteVariant]
     blend_oof = np.mean(oofs, axis=0)
     y = encode_target(train[TARGET]).to_numpy()
     skf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed)
@@ -289,11 +374,15 @@ def run_cv_multi_seed(
     freq: bool = False,
     te: bool = False,
     weight_search: bool = False,
+    max_workers: int | None = None,
+    backend: str | None = None,
 ) -> DeotteCvResult:
     """Run Deotte 3-variant CV for each seed; average OOFs; evaluate on fixed folds.
 
     When `weight_search` is True, grid-searches non-equal blend weights (w1, w2, w3)
     on the per-variant OOFs (averaged across seeds) to maximise CV AUC.
+    Independent (seed, variant) units may run in parallel; FeatureBuilder is fitted
+    once and reused. Logged params keep the caller's overrides (typically n_jobs=-1).
     """
     if seeds is None:
         seeds = [fold_seed]
@@ -301,23 +390,21 @@ def run_cv_multi_seed(
     y = encode_target(train[TARGET]).to_numpy()
     skf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=fold_seed)
 
-    # Collect per-variant OOF sums across seeds
-    variant_oof_sums: dict[str, np.ndarray] = {v.value: np.zeros(len(y), dtype=float) for v in DeotteVariant}
-    all_variants: dict[str, dict[str, VariantCv]] = {}
-    for s in seeds:
-        variants: dict[str, VariantCv] = {}
-        for v in DeotteVariant:
-            vc = run_variant_cv(
-                train, fb, v,
-                folds=folds, seed=fold_seed, model_seed=s,
-                model_overrides=model_overrides,
-            )
-            variants[v.value] = vc
-            variant_oof_sums[v.value] += vc.oof
-        all_variants[f"seed_{s}"] = variants
-
-    # Average per-variant OOFs across seeds
+    by_seed = _run_seed_variants(
+        train,
+        fb,
+        seeds=seeds,
+        folds=folds,
+        fold_seed=fold_seed,
+        model_overrides=model_overrides,
+        max_workers=max_workers,
+        backend=backend,
+    )
     n_seeds = len(seeds)
+    variant_oof_sums: dict[str, np.ndarray] = {v.value: np.zeros(len(y), dtype=float) for v in DeotteVariant}
+    for s in seeds:
+        for v in DeotteVariant:
+            variant_oof_sums[v.value] += by_seed[s][v.value].oof
     variant_oofs_avg = [variant_oof_sums[v.value] / n_seeds for v in DeotteVariant]
 
     if weight_search:
@@ -332,8 +419,7 @@ def run_cv_multi_seed(
         mean, std = mean_std(blend_scores)
         params = {**XGB_DEFAULTS, **(model_overrides or {}), "seeds": seeds}
 
-    # Store first seed's variants for save_run compatibility
-    first_variants = all_variants.get(f"seed_{seeds[0]}", {})
+    first_variants = {v.value: by_seed[seeds[0]][v.value] for v in DeotteVariant}
     return DeotteCvResult(blend_oof, blend_scores, mean, std, first_variants, fb, params)
 
 
@@ -401,6 +487,8 @@ def train(
     freq: bool = False,
     te: bool = False,
     weight_search: bool = False,
+    max_workers: int | None = None,
+    backend: str | None = None,
 ) -> DeotteCvResult:
     """Run Deotte CV, persist artifacts, optionally append EXPERIMENTS.md."""
     if seeds:
@@ -408,9 +496,14 @@ def train(
             df, test, folds=folds, fold_seed=seed, seeds=seeds,
             model_overrides=model_overrides, freq=freq, te=te,
             weight_search=weight_search,
+            max_workers=max_workers,
+            backend=backend,
         )
     else:
-        cv = run_cv(df, test, folds=folds, seed=seed, model_overrides=model_overrides, freq=freq, te=te)
+        cv = run_cv(
+            df, test, folds=folds, seed=seed, model_overrides=model_overrides,
+            freq=freq, te=te, max_workers=max_workers, backend=backend,
+        )
     save_run(df, cv, out=out)
     if log:
         log_experiment(cv, folds=folds, note=note, path=experiments_path)

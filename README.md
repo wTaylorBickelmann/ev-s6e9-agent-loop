@@ -215,6 +215,8 @@ have this data — use `--dry-run` there.
 
 ```bash
 # Train one exp folder (writes metrics / OOF under exps/ and outputs/)
+# Optional workers: EV_S6E9_TRAIN_WORKERS or --max-workers (default min(jobs, CPUs)).
+# Scores are unchanged (same seeds/params → same OOF/AUC); only wall-clock drops.
 python scripts/run_exp.py exp0041
 
 # Submit only if this CV beats ledger/runs_history.csv (score-first, fail OK)
