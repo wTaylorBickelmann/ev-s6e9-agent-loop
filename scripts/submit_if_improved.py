@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Submit to Kaggle and git-commit when the run beats the CSV-best CV."""
+"""Submit to Kaggle and git-commit when the run beats the CSV-best CV.
 
 Usage:
   python scripts/submit_if_improved.py exp0019 --dry-run
