@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from loop import context, ledger
+from loop import context, gitops, ledger
 from loop.config import Settings
 from loop.factory import build_executor, build_planner, competition_root_label
 from loop.log import log
@@ -29,9 +29,22 @@ class Loop:
         n = max(1, iterations)
         for i in range(1, n + 1):
             log(f"iteration {i}/{n} ({'dry-run' if self.dry_run else 'live'})")
+            if not self.dry_run:
+                restored = gitops.rewind_to_best(self.settings.root)
+                if restored:
+                    log(f"rewound {' '.join(restored)} to best baseline")
             plan = self.plan_once()
             result = self.execute_once(plan)
             self.record(result)
+            if not self.dry_run:
+                committed = gitops.commit_run(
+                    self.settings.root,
+                    strategy_id=result.strategy_id,
+                    status=result.status,
+                    cv=result.cv,
+                )
+                if committed:
+                    log(f"committed {result.strategy_id} ({result.status})")
             if result.status != "ok":
                 failures += 1
                 log(f"{result.strategy_id} failed ({failures} consecutive)")

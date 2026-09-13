@@ -22,6 +22,7 @@ data/processed/
 # Long experiment output — never commit, never feed to the planner
 logs/*
 !logs/.gitkeep
+!logs/README.md
 ledger/runs/*.json
 !ledger/runs/.gitkeep
 outputs/*
@@ -30,13 +31,25 @@ exps/**/oof.csv
 *.pkl
 *.joblib
 *.lgb
+*.log
+
+# CatBoost training artifacts (auto-generated during runs)
+catboost_info/
+
+# Outside-repo cache is not in this tree; keep a local override note only via .env
+.qwenignore.local
 
 # Generated site / notebook junk
 _site/
+
+# Noise / caches
 .ipynb_checkpoints/
 __marimo__/
 .marimo/
 .qwen/
 .DS_Store
+reports/kills/
+reports/plans/
 reports/*.png
 reports/*.svg
+notebooks/

@@ -1,0 +1,31 @@
+# Keep Qwen Code from bulk-ingesting dumps (tools still can open a path if forced).
+# Restart qwen sessions after changing this file.
+
+# Runtime / secrets
+.env
+.venv/
+venv/
+.git/
+
+# Competition data & heavy artifacts
+data/
+outputs/
+**/oof.csv
+**/*.joblib
+**/*.pkl
+**/*.lgb
+**/*.csv
+
+# In-repo log stub (real traces live under LOOP_LOGS_DIR outside the tree)
+logs/
+*.log
+
+# Noise / caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+__pycache__/
+.ipynb_checkpoints/
+reports/kills/
+reports/plans/
+notebooks/
