@@ -239,18 +239,25 @@ def candidate_cv(root: Path, exp_dir: Path, strategy_id: str) -> float:
 
 
 def best_keep_score(
-    root: Path, *, kind: str = "cv", exclude: str | None = None
+    root: Path,
+    *,
+    kind: str = "cv",
+    exclude: str | None = None,
+    include_csv_self: bool = False,
 ) -> ScoreRef:
     """Best score from the CSV (any status), else any scored exp/RESULTS row, else floor.
 
     Score-first: a ``fail`` row with a valid CV beats a lower ``status=keep``.
     ``exclude`` is an exp id or strategy id so a just-recorded candidate is not
-    compared against itself.
+    compared against itself in the exp/RESULTS fallback (and, by default, the CSV).
+    ``include_csv_self=True`` still uses the true CSV-best (higher ROC AUC) so a
+    re-run that only matches the board cannot fall back to a lower score.
     """
 
     floor = FLOOR_CV if kind == "cv" else FLOOR_LB
     skip = {s for s in (exclude, _other_id(exclude)) if s}
-    hist = best_row(read_rows(history_path(root)), kind=kind, exclude=skip)
+    csv_skip = set() if include_csv_self else skip
+    hist = best_row(read_rows(history_path(root)), kind=kind, exclude=csv_skip)
     if hist is not None:
         value = hist.cv if kind == "cv" else hist.lb
         if value is not None:
@@ -692,17 +699,30 @@ def run(
         print(exc, file=sys.stderr)
         return EXIT_ERROR
 
-    exclude = exp_id if exclude_candidate else None
     if gate == "cv":
-        # CLI / dry-run: compare against the true CSV-best (higher ROC AUC).
-        # Equal to the board is not an improvement. The orchestrator passes
-        # exclude_candidate=True so a just-appended row is not compared to itself.
-        verdict = decide(cv, best_keep_score(root, kind="cv", exclude=exclude), eps=eps)
+        # CLI / dry-run: true CSV-best (higher ROC AUC). Equal is not an
+        # improvement. Orchestrator sets exclude_candidate so a just-appended
+        # row is omitted from the CSV pick and can still submit as a new best.
+        verdict = decide(
+            cv,
+            best_keep_score(
+                root,
+                kind="cv",
+                exclude=exp_id,
+                include_csv_self=not exclude_candidate,
+            ),
+            eps=eps,
+        )
         print(verdict.summary(), flush=True)
         if not verdict.keep:
             return EXIT_KILL
     else:
-        best_lb = best_keep_score(root, kind="lb", exclude=exclude)
+        best_lb = best_keep_score(
+            root,
+            kind="lb",
+            exclude=exp_id,
+            include_csv_self=not exclude_candidate,
+        )
         print(
             f"gate=lb: will submit {exp_id} (CV={cv:.5f}) then compare public LB "
             f"to {best_lb.source} {best_lb.value:.5f} + eps={eps:g}",
@@ -755,7 +775,16 @@ def run(
         if lb is None:
             print("kill: LB pending — cannot confirm improve; not committing", flush=True)
             return EXIT_KILL
-        verdict = decide(lb, best_keep_score(root, kind="lb", exclude=exclude), eps=eps)
+        verdict = decide(
+            lb,
+            best_keep_score(
+                root,
+                kind="lb",
+                exclude=exp_id,
+                include_csv_self=not exclude_candidate,
+            ),
+            eps=eps,
+        )
         print(verdict.summary(), flush=True)
         if not verdict.keep:
             return EXIT_KILL

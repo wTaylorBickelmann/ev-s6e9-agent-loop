@@ -143,6 +143,22 @@ def test_best_keep_excludes_candidate_row(tmp_path: Path):
     assert best.value == pytest.approx(0.94552)
 
 
+def test_best_keep_csv_self_not_replaced_by_lower_score(tmp_path: Path):
+    """True CSV-best stays 0.94575; do not fall back to a lower exp/RESULTS CV."""
+
+    _write_exp(tmp_path, "exp0010", cv=0.94552, status="keep")
+    _write_exp(tmp_path, "exp0041", cv=0.94575, status="keep")
+    append_row(
+        history_path(tmp_path),
+        HistoryRow(strategy_id="s041", cv=0.94575, status="ok", commit="self"),
+    )
+    board = best_keep_score(tmp_path, kind="cv", exclude="exp0041", include_csv_self=True)
+    assert board.source == "csv:s041"
+    assert board.value == pytest.approx(0.94575)
+    skipped = best_keep_score(tmp_path, kind="cv", exclude="exp0041")
+    assert skipped.value == pytest.approx(0.94552)
+
+
 def test_best_keep_falls_back_to_results_then_floor(tmp_path: Path):
     empty = best_keep_score(tmp_path, kind="cv")
     assert empty.value == pytest.approx(FLOOR_CV)
