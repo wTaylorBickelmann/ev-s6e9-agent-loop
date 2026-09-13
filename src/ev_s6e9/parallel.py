@@ -1,7 +1,7 @@
-"""Process-pool helpers for independent CV units without CPU oversubscription.
+"""Process-pool helpers for independent CV units.
 
-Caps per-worker ``n_jobs`` / ``thread_count`` so workers × threads ≈ visible CPUs.
-A single worker keeps the model default (``n_jobs=-1``). Does not change seeds,
+Workers parallelize (seed, variant, fold) jobs. Training keeps model thread
+defaults (``n_jobs=-1``); oversubscription is acceptable. Does not change seeds,
 ``tree_method``, or ``device``.
 """
 
@@ -31,7 +31,7 @@ def available_cpus() -> int:
 
 
 def resolve_max_workers(n_tasks: int, max_workers: int | None = None) -> int:
-    """Workers = min(tasks, knob, CPUs). ``1`` means sequential with ``n_jobs=-1``."""
+    """Workers = min(tasks, knob, CPUs). ``1`` means sequential (no pool)."""
 
     if n_tasks <= 1:
         return 1
@@ -39,32 +39,6 @@ def resolve_max_workers(n_tasks: int, max_workers: int | None = None) -> int:
         raw = os.environ.get(ENV_WORKERS)
         max_workers = int(raw) if raw not in (None, "") else available_cpus()
     return max(1, min(int(max_workers), n_tasks, available_cpus()))
-
-
-def per_worker_n_jobs(n_workers: int) -> int | None:
-    """``None`` keeps ``n_jobs=-1``; else ``max(1, cpus // n_workers)``."""
-
-    if n_workers <= 1:
-        return None
-    return max(1, available_cpus() // n_workers)
-
-
-def apply_thread_cap(
-    overrides: dict | None,
-    n_jobs: int | None,
-    *,
-    keys: Sequence[str] = ("n_jobs",),
-) -> dict:
-    """Copy overrides; cap thread keys when a per-worker limit applies."""
-
-    out = dict(overrides or {})
-    if n_jobs is None:
-        return out
-    for key in keys:
-        cur = out.get(key)
-        if cur is None or cur == -1 or (isinstance(cur, int) and cur > n_jobs):
-            out[key] = n_jobs
-    return out
 
 
 def map_cv_jobs(

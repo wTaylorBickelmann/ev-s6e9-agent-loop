@@ -1,4 +1,4 @@
-"""Parallel Deotte CV matches sequential OOF/AUC; worker/n_jobs knobs stay safe."""
+"""Parallel Deotte CV matches sequential OOF/AUC; n_jobs stays -1 under workers."""
 
 from __future__ import annotations
 
@@ -12,10 +12,8 @@ from ev_s6e9.deotte import run_cv, run_cv_multi_seed
 from ev_s6e9.features import FeatureBuilder
 from ev_s6e9.model import XGB_DEFAULTS
 from ev_s6e9.parallel import (
-    apply_thread_cap,
     available_cpus,
     map_cv_jobs,
-    per_worker_n_jobs,
     resolve_max_workers,
 )
 
@@ -32,21 +30,6 @@ def test_resolve_max_workers_defaults_and_env(monkeypatch):
     assert resolve_max_workers(30) == 4
     assert resolve_max_workers(2) == 2
     assert resolve_max_workers(30, max_workers=3) == 3
-
-
-def test_per_worker_n_jobs_and_thread_cap(monkeypatch):
-    """One worker keeps n_jobs=-1; N workers cap so N * n_jobs ≈ CPUs."""
-
-    monkeypatch.setattr("ev_s6e9.parallel.available_cpus", lambda: 16)
-    assert per_worker_n_jobs(1) is None
-    assert per_worker_n_jobs(4) == 4
-    assert per_worker_n_jobs(16) == 1
-    raw = {"max_depth": 6, "n_jobs": -1}
-    assert apply_thread_cap(raw, None) == raw
-    assert apply_thread_cap(raw, 2)["n_jobs"] == 2
-    assert raw["n_jobs"] == -1
-    assert apply_thread_cap({"n_jobs": 1}, 4)["n_jobs"] == 1
-    assert apply_thread_cap(None, 3, keys=("thread_count",))["thread_count"] == 3
 
 
 def test_map_cv_jobs_sequential_and_thread():
@@ -68,7 +51,7 @@ def _stub_fit_fold(fb, variant, raw_tr, raw_va, y_tr, y_va, *, seed, overrides):
     code = {"m1": 1.0, "m2": 2.0, "m3": 3.0}[variant.value]
     raw = np.mod(ids * 17.0 + float(seed) * 13.0 + code * 7.0, 97.0) / 97.0
     p = np.where(y_va == 1, 0.5 + 0.5 * raw, 0.5 * raw)
-    return SimpleNamespace(n_jobs=overrides.get("n_jobs")), p
+    return SimpleNamespace(n_jobs=overrides.get("n_jobs", -1)), p
 
 
 def test_thread_pool_matches_sequential_oof_auc(monkeypatch):
@@ -79,7 +62,7 @@ def test_thread_pool_matches_sequential_oof_auc(monkeypatch):
     monkeypatch.delenv("EV_S6E9_TRAIN_WORKERS", raising=False)
     tr = synth(80, seed=1, target=True)
     te = synth(20, seed=2, target=False, start_id=10_000)
-    kw = dict(folds=2, fold_seed=42, seeds=[42, 43], freq=True, te=True)
+    kw = dict(folds=2, fold_seed=42, seeds=[42, 43], freq=True, te=True, model_overrides={"n_jobs": -1})
     seq = run_cv_multi_seed(tr, te, max_workers=1, **kw)
     par = run_cv_multi_seed(tr, te, max_workers=4, backend="thread", **kw)
     np.testing.assert_allclose(seq.oof, par.oof, atol=1e-12)
@@ -87,7 +70,8 @@ def test_thread_pool_matches_sequential_oof_auc(monkeypatch):
     assert seq.std == pytest.approx(par.std, abs=1e-12)
     assert seq.fold_aucs == pytest.approx(par.fold_aucs, abs=1e-12)
     assert seq.params.get("n_jobs") == XGB_DEFAULTS["n_jobs"] == -1
-    assert {m.n_jobs for vc in par.variants.values() for m in vc.models} == {2}
+    assert {m.n_jobs for vc in seq.variants.values() for m in vc.models} == {-1}
+    assert {m.n_jobs for vc in par.variants.values() for m in vc.models} == {-1}
 
 
 def test_feature_builder_fitted_once(monkeypatch):

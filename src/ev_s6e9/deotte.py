@@ -1,7 +1,7 @@
 """Deotte Fable 5.1: 3-model XGB blend (baseline, base_margin, recipe_feature).
 
-Independent (seed, variant) CVs run in a process pool. Per-worker ``n_jobs`` is
-capped so workers × threads ≈ CPU count; a single worker still uses ``n_jobs=-1``.
+Independent (seed, variant) CVs run in a process pool. Caller ``model_overrides``
+pass through unchanged so XGB keeps ``n_jobs=-1`` (oversubscription is OK).
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from ev_s6e9.experiments import append_chunk, format_chunk
 from ev_s6e9.features import FeatureBuilder, TE_COL, encode_target, te_apply, te_fit, te_oof, te_oof_avg
 from ev_s6e9.metrics import auc, fmt_cv, mean_std
 from ev_s6e9.model import XGB_DEFAULTS, make_xgb_model, short_xgb_params
-from ev_s6e9.parallel import apply_thread_cap, map_cv_jobs, per_worker_n_jobs, resolve_max_workers
+from ev_s6e9.parallel import map_cv_jobs
 from ev_s6e9.paths import CV_JSON, OOF_CSV, OUTPUTS, ROOT
 from ev_s6e9.schema import ID_COL, TARGET
 
@@ -265,10 +265,9 @@ def _run_seed_variants(
 ) -> dict[int, dict[str, VariantCv]]:
     """Fit every (seed, variant) pair; sequential when only one worker is used."""
 
-    n_workers = resolve_max_workers(len(seeds) * len(DeotteVariant), max_workers)
-    capped = apply_thread_cap(model_overrides, per_worker_n_jobs(n_workers))
+    overrides = dict(model_overrides or {})
     jobs = [
-        _VariantJob(model_seed=s, variant=v.value, folds=folds, fold_seed=fold_seed, overrides=capped)
+        _VariantJob(model_seed=s, variant=v.value, folds=folds, fold_seed=fold_seed, overrides=overrides)
         for s in seeds
         for v in DeotteVariant
     ]
