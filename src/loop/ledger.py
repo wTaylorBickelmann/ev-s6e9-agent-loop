@@ -54,9 +54,9 @@ def parse_result_rows(results_md: Path) -> list[RunResult]:
 def best_cv(
     results: list[RunResult], *, higher_is_better: bool = True
 ) -> tuple[str, float] | None:
-    """Winning `(strategy_id, cv)` among ok rows, or None if nothing scored."""
+    """Winning `(strategy_id, cv)` among scored rows (any status), or None."""
 
-    scored = [r for r in results if r.cv is not None and r.status == "ok"]
+    scored = [r for r in results if r.cv is not None]
     if not scored:
         return None
     winner = max(scored, key=lambda r: r.cv or 0.0) if higher_is_better else min(

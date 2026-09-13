@@ -6,6 +6,7 @@ always:
   - ledger/STRATEGIES.md
   - ledger/RESULTS.md
   - ledger/CURRENT_STRATEGY.md
+  - ledger/runs_history.csv
   - CURSOR.md
   - LEARNINGS.md
   - STRATEGY.md

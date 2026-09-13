@@ -6,11 +6,10 @@ from __future__ import annotations
 
 import json
 
+import loop.adapters.qwen as qwen_mod
 from loop.adapters.qwen import ExecutorQwenCode
 from loop.models import Plan
 from loop.shell import CmdResult
-
-import loop.adapters.qwen as qwen_mod
 
 # s999 is absent from the scaffold RESULTS.md so the RESULTS.md short-circuit
 # doesn't fire; it maps to exps/exp0999.

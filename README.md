@@ -15,63 +15,88 @@ The overnight loop runs **locally in this checkout**. There is no recurring pull
 
 ## How the pieces fit
 
-One iteration is **planner → ledgers → executor → train → RESULTS**, then the next
-plan reads those ledgers. The planner sees only `config/planner_reads.yaml`.
+One iteration is **rewind → plan → train → RESULTS+CSV → commit → maybe submit**,
+then the next plan reads those ledgers. The planner sees only `config/planner_reads.yaml`.
 
 ```
-+---------------------------+
-| config/planner_reads.yaml |
-| (whitelist only; no logs) |
-+-------------+-------------+
-              |
-              v
-+-------------+-------------+       recoverable fail
-| PLANNER                   |---------------------+
-| Antigravity (`agy`)       |                     |
-+-------------+-------------+                     v
-              |                       +-----------+-----------+
-              | ok                    | FALLBACK              |
-              |                       | DeepSeek (local HTTP) |
-              |                       +-----------+-----------+
-              |                                   |
-              +----------------+------------------+
-                               |
-                               v
-              +----------------+------------------+
-              | LEDGERS                           |
-              | rewrite  CURRENT_STRATEGY.md      |
-              | append   STRATEGIES.md            |
-              +----------------+------------------+
-                               |
-                               v
-              +----------------+------------------+
-              | EXECUTOR                          |
-              | Qwen Code (`qwen -p`, local ~27B) |
-              +----------------+------------------+
-                               |
-                               v
-              +----------------+------------------+
-              | TRAIN                             |
-              | copy keep  exps/exp0010           |
-              |         -> exps/expNNNN           |
-              | scripts/run_exp.py                |
-              | python -m ev_s6e9 train           |
-              +----------------+------------------+
-                               |
-              +----------------+------------------+
-              | RESULTS                           |
-              | append   ledger/RESULTS.md        |
-              | write    ledger/runs/<id>.json    |
-              | write    logs/<id>.log (disk only)|
-              +----------------+------------------+
-                               |
-                               v
-                         next iteration
++-----------------------------------------------+
+| REWIND                                        |
+| read ledger/runs_history.csv                  |
+| pick row with best CV (any status; skip null) |
+| git checkout <that SHA> -- exps/ src/ev_s6e9/ |
+| src/loop, prompts, config, ledger stay put    |
++----------------------+------------------------+
+                       |
+                       v
++----------------------+------------------------+
+| config/planner_reads.yaml (whitelist; no logs)|
++----------------------+------------------------+
+                       |
+                       v
++----------------------+--------+   recoverable fail
+| PLANNER                       |------------------+
+| Antigravity (`agy`)           |                  |
++----------------------+--------+                  v
+                       | ok              +---------+-----------+
+                       |                 | FALLBACK            |
+                       |                 | DeepSeek (local HTTP)|
+                       |                 +---------+-----------+
+                       |                           |
+                       +-------------+-------------+
+                                     |
+                                     v
+                       +-------------+-------------+
+                       | LEDGERS                   |
+                       | rewrite  CURRENT_STRATEGY |
+                       | append   STRATEGIES.md    |
+                       +-------------+-------------+
+                                     |
+                                     v
+                       +-------------+-------------+
+                       | EXECUTOR                  |
+                       | Qwen Code (`qwen -p`)     |
+                       +-------------+-------------+
+                                     |
+                                     v
+                       +-------------+-------------+
+                       | TRAIN                     |
+                       | copy CSV-best -> expNNNN  |
+                       | scripts/run_exp.py        |
+                       | python -m ev_s6e9 train   |
+                       +-------------+-------------+
+                                     |
+                       +-------------+-------------+
+                       | RECORD                    |
+                       | append RESULTS.md         |
+                       | append runs_history.csv   |
+                       | write  ledger/runs/<id>   |
+                       +-------------+-------------+
+                                     |
+                       +-------------+-------------+
+                       | ALWAYS COMMIT             |
+                       | loop: RUN <id> status= cv=|
+                       | (ok or fail; SHA -> CSV)  |
+                       +-------------+-------------+
+                                     |
+                          CV beats CSV-best + eps?
+                          (fail + valid CV counts)
+                          /                    \
+                        yes                     no
+                         |                       |
+                         v                       v
+              +----------+-----------+      next iteration
+              | SUBMIT-IF-IMPROVED   |
+              | predict + Kaggle     |
+              | loop: KEEP (+submit) |
+              +----------+-----------+
+                         |
+                         v
+                   next iteration
 ```
 
 `--dry-run` swaps mock planner + executor (no `agy` / `qwen` / GPU). Same ledger
-writes; CV is the fake `0.5`. A shorter copy of this picture lives in
-`docs/architecture.txt` and `CURSOR.md`.
++ CSV writes; CV is the fake `0.5`; no git rewind/commit/submit. A shorter copy
+lives in `docs/architecture.txt` and `CURSOR.md`.
 
 ## Floor (exp0010)
 
@@ -148,9 +173,9 @@ python -m loop show-whitelist
    ./scripts/run-loop.sh 20
    ```
 
-`competition.root` is **this repo** (`.` / `COMPETITION_ROOT=.`). The executor copies
-`exps/exp0010/` → `exps/expNNNN/`, trains via `scripts/run_exp.py`, and appends one
-`ledger/RESULTS.md` row.
+`competition.root` is **this repo** (`.` / `COMPETITION_ROOT=.`). Each iteration
+rewinds `exps/`+`src/ev_s6e9/` to the CSV-best CV commit (not `src/loop/`), the executor trains via
+`scripts/run_exp.py`, then the loop appends RESULTS + `runs_history.csv` and commits.
 
 Suggested memory split: do **not** keep both DeepSeek (~120GB Q3) and 27B Qwen resident
 at once. They run in sequence (plan, then execute). Bounce backends **without** restarting
@@ -178,18 +203,40 @@ python -m loop execute-once           # run the current spec
 python -m loop run --iterations 5
 python -m loop run --iterations 1 --dry-run
 python -m ev_s6e9 train --strategy deotte --freq --te
-python scripts/submit_if_improved.py exp0019 --dry-run   # gate on CV; no submit/commit
-python -m loop submit-if-improved exp0019               # submit + commit only on CV best
+python scripts/submit_if_improved.py exp0019 --dry-run   # gate on CSV-best CV; no submit/commit
+python -m loop submit-if-improved exp0019               # submit + KEEP commit on CSV-best
 ```
 
-Submit only on a **CV personal best** (repo convention: CV is ground truth). The helper
-reads `exps/<exp>/metrics.json`, compares to the best keep (keep `metrics.json`, RESULTS
-`ok` rows, or the exp0010 floor **0.94552**), and on a lift of more than `--eps` (default
-`1e-5`) runs predict if needed, `python -m ev_s6e9 submit`, polls public LB with a timeout,
-appends LB into RESULTS / EXPERIMENTS, then `git add`s only allow-listed paths (exp
-config/NOTES/metrics, ledgers, `src/` — never data CSVs, `oof.csv`, joblib, `.env`).
-`--gate lb` compares public LB after submit instead. `--push` is off by default.
-A kill prints `kill` and exits `1` with no submit and no commit.
+### Real train + submit (local Mac Studio)
+
+Needs competition CSVs (`python -m ev_s6e9 download`) and Kaggle credentials
+(`~/.kaggle/kaggle.json` or `~/.kaggle/access_token`). The cloud CI VM does **not**
+have this data — use `--dry-run` there.
+
+```bash
+# Train one exp folder (writes metrics / OOF under exps/ and outputs/)
+python scripts/run_exp.py exp0041
+
+# Submit only if this CV beats ledger/runs_history.csv (score-first, fail OK)
+python -m loop submit-if-improved exp0041 --dry-run   # print keep/kill
+python -m loop submit-if-improved exp0041             # predict + Kaggle + KEEP commit
+
+# Overnight loop: rewind → plan → train → CSV+commit → submit-if-best
+python -m loop run --iterations 20
+```
+
+Submit when the run is a **CV personal best** (repo convention: CV is ground truth).
+The helper reads `exps/<exp>/metrics.json`, compares to the **CSV-best CV** in
+`ledger/runs_history.csv` (any status with a valid score — a timeout-after-success
+`fail` still counts), falling back to scored exp/RESULTS rows or the exp0010 floor
+**0.94552**. On a lift of more than `--eps` (default `1e-5`, `loop.submit_eps` in
+`config/loop.yaml`) it runs predict if needed, `python -m ev_s6e9 submit`, polls
+public LB with a timeout, appends LB into RESULTS / EXPERIMENTS, then `git add`s
+only allow-listed paths (exp config/NOTES/metrics, ledgers including the CSV,
+`src/` — never data CSVs, `oof.csv`, joblib, `.env`). The overnight loop calls
+this after every scored run, **including `status=fail`**. `--gate lb` compares
+public LB after submit instead. `--push` is off by default. A kill prints `kill`
+and exits `1` with no submit and no extra KEEP commit (the RUN commit already happened).
 
 Stop conditions live in `config/loop.yaml`: `max_iterations`, `target_cv`,
 `max_consecutive_failures`.
@@ -214,17 +261,18 @@ Optional: `src/ev_s6e9/{features,deotte,model,train}.py`, exp0010 NOTES/config,
 
 ## Layout
 
-Flow: **planner → ledgers → executor → exps/train → RESULTS** (diagram above).
+Flow: **rewind-from-CSV-best → plan → execute/train → RESULTS+CSV → always commit →
+maybe submit if best** (diagram above).
 
 ```
 src/loop/            Antigravity / DeepSeek / Qwen adapters + orchestrator
 src/ev_s6e9/         vendored S6E9 library (features, deotte, train, predict, …)
 exps/exp0010/        keep floor (config / NOTES / metrics; regenerate OOF locally)
 scripts/run_exp.py             train one exp folder
-scripts/submit_if_improved.py  submit + commit only on a CV (or LB) personal best
+scripts/submit_if_improved.py  submit + KEEP commit on a CSV-best CV (or LB)
 scripts/run-loop.sh            python -m loop run
-ledger/              compact STRATEGIES / RESULTS / CURRENT_STRATEGY
-config/loop.yaml     competition.root = .
+ledger/              STRATEGIES / RESULTS / CURRENT_STRATEGY / runs_history.csv
+config/loop.yaml     competition.root = . ; loop.submit_eps
 docs/architecture.txt
 ```
 

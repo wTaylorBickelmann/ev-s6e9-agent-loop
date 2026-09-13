@@ -1,4 +1,8 @@
-"""`python -m loop` CLI: run, plan-once, execute-once, show-whitelist, submit-if-improved."""
+"""`python -m loop` CLI: run, plan-once, execute-once, show-whitelist, submit-if-improved.
+
+``run`` rewinds to the CSV-best CV, then plan → train → RESULTS+CSV → commit →
+submit-if-best. ``execute-once`` records, commits, and may submit the current spec.
+"""
 
 from __future__ import annotations
 
@@ -36,6 +40,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "execute-once":
         result = loop.execute_once()
         loop.record(result)
+        loop.finish_run(result)
         log(f"executed {result.strategy_id}: {result.status}")
         return 0 if result.status == "ok" else 1
     if args.cmd == "show-whitelist":
@@ -84,7 +89,7 @@ def _parser() -> argparse.ArgumentParser:
     _add_common(show)
     sif = sub.add_parser(
         "submit-if-improved",
-        help="submit + commit only when CV (or LB) beats the best keep",
+        help="submit + commit when CV (or LB) beats the CSV-best score",
     )
     from loop.submit_if_improved import add_arguments
 

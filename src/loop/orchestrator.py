@@ -1,13 +1,15 @@
-"""Plan → write ledgers → execute → record RESULTS. Stop on target CV or fail streak."""
+"""Plan → execute → record RESULTS+CSV → always commit → submit if CSV-best."""
 
 from __future__ import annotations
 
-from loop import context, gitops, ledger
+from loop import context, gitops, history, ledger
 from loop.config import Settings
 from loop.factory import build_executor, build_planner, competition_root_label
 from loop.log import log
 from loop.models import Plan, RunResult
 from loop.parse import parse_plan
+from loop.submit_if_improved import run as submit_if_improved
+from loop.submit_if_improved import strategy_to_exp_id
 
 
 class Loop:
@@ -23,7 +25,7 @@ class Loop:
         self.current = settings.ledger_dir / "CURRENT_STRATEGY.md"
 
     def run(self, iterations: int) -> int:
-        """Plan, execute, and record up to N times. Return 1 on a fail streak."""
+        """Rewind to CSV-best, plan, execute, record, commit, maybe submit."""
 
         failures = 0
         n = max(1, iterations)
@@ -32,19 +34,11 @@ class Loop:
             if not self.dry_run:
                 restored = gitops.rewind_to_best(self.settings.root)
                 if restored:
-                    log(f"rewound {' '.join(restored)} to best baseline")
+                    log(f"rewound {' '.join(restored)} to CSV-best CV commit")
             plan = self.plan_once()
             result = self.execute_once(plan)
             self.record(result)
-            if not self.dry_run:
-                committed = gitops.commit_run(
-                    self.settings.root,
-                    strategy_id=result.strategy_id,
-                    status=result.status,
-                    cv=result.cv,
-                )
-                if committed:
-                    log(f"committed {result.strategy_id} ({result.status})")
+            self.finish_run(result)
             if result.status != "ok":
                 failures += 1
                 log(f"{result.strategy_id} failed ({failures} consecutive)")
@@ -91,6 +85,35 @@ class Loop:
         self.settings.logs_dir.mkdir(parents=True, exist_ok=True)
         log(f"recorded {result.strategy_id} status={result.status} cv={result.cv}")
 
+    def finish_run(self, result: RunResult) -> None:
+        """Commit every run, append the CSV scoreboard, submit if CV is a new best."""
+
+        sha, msg = "", ""
+        if not self.dry_run:
+            committed = gitops.commit_run(
+                self.settings.root,
+                strategy_id=result.strategy_id,
+                status=result.status,
+                cv=result.cv,
+            )
+            if committed:
+                sha, msg = committed.sha, committed.message
+                log(f"committed {result.strategy_id} {committed.sha[:12]} ({result.status})")
+        history.append_row(
+            history.history_path(self.settings.root),
+            history.HistoryRow(
+                strategy_id=result.strategy_id,
+                one_liner=history.one_liner_for(self.settings.root, result.strategy_id),
+                commit=sha,
+                commit_msg=msg,
+                cv=result.cv,
+                lb=result.lb,
+                status=result.status,
+            ),
+        )
+        if not self.dry_run:
+            self._maybe_submit(result)
+
     def show_whitelist(self) -> AssembledView:
         """What the planner would see (listing, skips, byte total, rendered text)."""
 
@@ -121,9 +144,16 @@ class Loop:
 
         ctx = self._assemble()
         template = self.settings.planner_prompt.read_text(encoding="utf-8")
-        rows = ledger.parse_result_rows(self.results)
-        best = ledger.best_cv(rows, higher_is_better=self.settings.higher_is_better)
-        best_s = f"{best[1]:.6g} ({best[0]})" if best else "—"
+        winner = history.best_row(
+            history.read_rows(history.history_path(self.settings.root)),
+            higher_is_better=self.settings.higher_is_better,
+        )
+        if winner and winner.cv is not None:
+            best_s = f"{winner.cv:.6g} ({winner.strategy_id})"
+        else:
+            rows = ledger.parse_result_rows(self.results)
+            best = ledger.best_cv(rows, higher_is_better=self.settings.higher_is_better)
+            best_s = f"{best[1]:.6g} ({best[0]})" if best else "—"
         return template.format(
             competition_name=self.settings.competition_name,
             metric=self.settings.metric,
@@ -160,6 +190,26 @@ class Loop:
         if spec:
             parsed.spec = spec
         return parsed
+
+    def _maybe_submit(self, result: RunResult) -> None:
+        """Kaggle-submit when a valid CV exists (ok or fail) if it beats the CSV best."""
+
+        if result.cv is None:
+            return
+        try:
+            exp_id = strategy_to_exp_id(result.strategy_id)
+        except ValueError:
+            return
+        exp_dir = self.settings.root / "exps" / exp_id
+        if not (exp_dir / "config.json").is_file():
+            log(f"skip submit {result.strategy_id}: no {exp_id}/config.json")
+            return
+        rc = submit_if_improved(
+            self.settings.root,
+            exp_id,
+            eps=self.settings.submit_eps,
+        )
+        log(f"submit-if-improved {exp_id} rc={rc} (status={result.status} cv={result.cv})")
 
     def _hit_target(self, result: RunResult) -> bool:
         """True when an ok result meets `target_cv` (higher- or lower-is-better)."""

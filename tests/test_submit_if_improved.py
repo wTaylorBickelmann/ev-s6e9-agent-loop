@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from loop.cli import main as loop_main
+from loop.history import HistoryRow, append_row, history_path
 from loop.ledger import parse_result_rows, update_result_lb
 from loop.submit_if_improved import (
     DEFAULT_EPS,
@@ -29,6 +31,7 @@ from loop.submit_if_improved import (
     pick_submission,
     poll_public_lb,
     run,
+    strategy_to_exp_id,
     submit_message,
 )
 
@@ -85,16 +88,40 @@ def test_exp_to_strategy_id():
     assert exp_to_strategy_id("exp0019") == "s019"
     assert exp_to_strategy_id("exp0010") == "s010"
     assert exp_to_strategy_id("exps/exp0001") == "s001"
+    assert strategy_to_exp_id("s019") == "exp0019"
+    assert strategy_to_exp_id("s041") == "exp0041"
 
 
-def test_best_keep_from_keep_metrics_ignores_kill(tmp_path: Path):
+def test_best_keep_score_first_includes_fail(tmp_path: Path):
+    """A fail/kill with a higher CV is the baseline (not only status=keep)."""
+
     _write_exp(tmp_path, "exp0010", cv=0.94552, status="keep", lb=0.94561)
     _write_exp(tmp_path, "exp0012", cv=0.94559, status="kill")
     _write_results(tmp_path, "| s012 | fail | 0.94559 | — | noise |\n")
     best = best_keep_score(tmp_path, kind="cv")
-    assert best.source == "exp0010"
-    assert best.value == pytest.approx(0.94552)
+    assert best.value == pytest.approx(0.94559)
+    assert best.source in {"exp0012", "s012"}
     assert best_keep_score(tmp_path, kind="lb").value == pytest.approx(0.94561)
+
+
+def test_best_keep_uses_csv_fail_over_keep_metrics(tmp_path: Path):
+    """CSV score-first: fail 0.94575 beats keep metrics 0.94552."""
+
+    _write_exp(tmp_path, "exp0010", cv=0.94552, status="keep")
+    append_row(
+        history_path(tmp_path),
+        HistoryRow(
+            strategy_id="s041",
+            one_liner="timeout after train",
+            commit="deadbeef",
+            commit_msg="loop: RUN s041 status=fail cv=0.94575",
+            cv=0.94575,
+            status="fail",
+        ),
+    )
+    best = best_keep_score(tmp_path, kind="cv")
+    assert best.source == "csv:s041"
+    assert best.value == pytest.approx(0.94575)
 
 
 def test_best_keep_excludes_candidate_row(tmp_path: Path):
@@ -136,6 +163,7 @@ def test_allowed_git_paths():
     assert is_allowed_git_path("exps/exp0019/config.json")
     assert is_allowed_git_path("exps/exp0019/NOTES.md")
     assert is_allowed_git_path("ledger/RESULTS.md")
+    assert is_allowed_git_path("ledger/runs_history.csv")
     assert is_allowed_git_path("src/ev_s6e9/deotte.py")
     assert is_allowed_git_path("EXPERIMENTS.md")
     assert not is_allowed_git_path("exps/exp0019/oof.csv")
@@ -215,6 +243,35 @@ def test_dry_run_kill_does_not_subprocess(tmp_path: Path, capsys):
     assert rc == EXIT_KILL
     assert "kill" in out
     assert "would submit" not in out
+
+
+def test_dry_run_keep_when_fail_cv_beats_csv(tmp_path: Path, capsys):
+    """status=fail with a valid CV that beats the CSV best still gates as keep."""
+
+    append_row(
+        history_path(tmp_path),
+        HistoryRow(strategy_id="s010", cv=0.94552, status="ok", commit="aaa"),
+    )
+    _write_exp(tmp_path, "exp0041", cv=0.94575, status="scored")
+    rc = run(tmp_path, "exp0041", dry_run=True, run_cmd=_boom)
+    out = capsys.readouterr().out
+    assert rc == EXIT_OK
+    assert "keep" in out
+    assert "csv:s010" in out
+    assert "would submit" in out
+
+
+def test_dry_run_kill_when_csv_best_is_higher(tmp_path: Path, capsys):
+    append_row(
+        history_path(tmp_path),
+        HistoryRow(strategy_id="s041", cv=0.94575, status="fail", commit="bbb"),
+    )
+    _write_exp(tmp_path, "exp0042", cv=0.94560, status="scored")
+    rc = run(tmp_path, "exp0042", dry_run=True, run_cmd=_boom)
+    out = capsys.readouterr().out
+    assert rc == EXIT_KILL
+    assert "kill" in out
+    assert "csv:s041" in out
 
 
 def test_dry_run_keep_prints_without_submit(tmp_path: Path, capsys):
@@ -348,8 +405,10 @@ def test_stale_submission_regenerated_when_oof_newer(tmp_path: Path, capsys):
     oof = tmp_path / "exps" / "exp0019" / "oof.csv"
     oof.write_text("id,Will_Buy_EV\n1,0.5\n")
     # make the OOF strictly newer than the stale submission
-    sub.touch(); old = sub.stat().st_mtime
-    oof.touch(); oof.stat()  # oof now has a later mtime than sub
+    sub.touch()
+    oof.touch()
+    oof_mtime = sub.stat().st_mtime + 10
+    os.utime(oof, (oof_mtime, oof_mtime))
 
     predict_cmds: list[list[str]] = []
 
@@ -362,5 +421,5 @@ def test_stale_submission_regenerated_when_oof_newer(tmp_path: Path, capsys):
     from loop.submit_if_improved import ensure_predictions
     out = ensure_predictions(tmp_path, tmp_path / "exps" / "exp0019",
                              skip=False, force=False, dry_run=False, run=fake_run)
-    assert predict_cmds, "predict should have been re-run because the OOF is newer than submission.csv"
+    assert predict_cmds, "predict should re-run when OOF is newer than submission.csv"
     assert out == sub

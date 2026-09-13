@@ -1,0 +1,2 @@
+strategy_id,one_liner,commit,commit_msg,cv,lb,status,ts
+s041,"Triple-smoothing TE on Daily_Commute_km (m=2+m=5+m=20) beside income triple-TE, 10-seed + weight search",3468198b5c90269fae86eca56c9fc5b81a4a9315,loop: KEEP exp0041 CV=0.94575 LB=0.94580 (+submit),0.94575,0.9458,ok,2026-09-13T12:11:04Z
