@@ -130,6 +130,15 @@ class Settings:
 
         return int((self.raw.get("loop") or {}).get("max_consecutive_failures") or 3)
 
+    @property
+    def submit_eps(self) -> float:
+        """Minimum CV lift vs the CSV-best score before submit-if-improved runs."""
+
+        value = (self.raw.get("loop") or {}).get("submit_eps")
+        if value is None or value == "":
+            return 1e-5
+        return float(value)
+
     def section(self, *keys: str) -> dict:
         """Nested dict from `raw` (`planner`, `antigravity`, …); `{}` if missing."""
 

@@ -38,12 +38,13 @@ def test_append_and_best(tmp_path: Path):
     assert strategies.read_text(encoding="utf-8").count("| s002 |") == 1
     append_result(results, RunResult("s001", "ok", cv=0.90, notes="a"))
     append_result(results, RunResult("s002", "ok", cv=0.94, notes="b"))
+    append_result(results, RunResult("s003", "fail", cv=0.95, notes="timeout after train"))
     rows = parse_result_rows(results)
-    assert best_cv(rows) == ("s002", 0.94)
+    assert best_cv(rows) == ("s003", 0.95)
     write_current(tmp_path / "C.md", plan)
     assert "# s002" in (tmp_path / "C.md").read_text(encoding="utf-8")
     assert update_result_lb(results, "s002", 0.9415) is True
     updated = parse_result_rows(results)
-    assert updated[-1].strategy_id == "s002"
-    assert updated[-1].lb == 0.9415
-    assert updated[-1].cv == 0.94
+    s002 = next(r for r in updated if r.strategy_id == "s002")
+    assert s002.lb == 0.9415
+    assert s002.cv == 0.94

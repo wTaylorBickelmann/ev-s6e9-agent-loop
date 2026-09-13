@@ -18,6 +18,7 @@ data/raw/*
 data/processed/
 *.csv
 !sample_submission.example.csv
+!ledger/runs_history.csv
 
 # Long experiment output — never commit, never feed to the planner
 logs/*

@@ -1,18 +1,21 @@
-"""Submit to Kaggle and git-commit only when a run beats the best keep score.
+"""Submit to Kaggle and git-commit when a run beats the CSV-best CV.
 
 Typical flow (default gate is CV — repo convention: CV is ground truth):
 
 1. Read candidate CV from ``exps/<exp>/metrics.json`` (or ledger / runs).
-2. Compare to the current best keep (keep ``metrics.json``, RESULTS ``ok`` rows,
-   else the exp0010 floor 0.94552). Higher ROC AUC wins.
+2. Compare to the scoreboard best (``ledger/runs_history.csv``, any status with
+   a valid CV — fail-after-timeout counts). Fallback: any scored exp/RESULTS
+   row, else the exp0010 floor 0.94552. Higher ROC AUC wins.
 3. If the candidate does not beat best + ε: print ``kill`` and exit 1.
    Do not submit. Do not commit.
 4. If it improves: predict if needed, ``python -m ev_s6e9 submit``, poll public
    LB (best-effort), append LB into RESULTS / EXPERIMENTS, then ``git add``
    only allowed paths and commit ``loop: KEEP expNNNN CV=... (+submit)``.
 
-``--gate lb`` submits first, then keeps only if public LB improves. ``--dry-run``
-prints the decision without submit/commit. ``--push`` is off by default.
+The orchestrator calls this after every run that has a CV, including
+``status=fail`` (timeout-after-success). ``--gate lb`` submits first, then
+keeps only if public LB improves. ``--dry-run`` prints the decision without
+submit/commit. ``--push`` is off by default.
 """
 
 from __future__ import annotations
@@ -31,6 +34,7 @@ from datetime import date
 from pathlib import Path
 
 from ev_s6e9.schema import COMPETITION
+from loop.history import best_row, history_path, read_rows
 from loop.ledger import append_result, parse_result_rows, update_result_lb, write_run_json
 from loop.models import RunResult
 
@@ -80,6 +84,10 @@ ALLOWED_ROOT_FILES = {
     "DEOTTE_BRIEF.md",
     "TOP20_PUBLIC_NOTEBOOKS.md",
 }
+# Scoreboard is a ledger CSV; ``*.csv`` is otherwise denied (data / OOF).
+ALLOWED_LEDGER_FILES = {
+    "ledger/runs_history.csv",
+}
 
 
 @dataclass(frozen=True)
@@ -93,7 +101,7 @@ class ScoreRef:
 
 @dataclass(frozen=True)
 class GateVerdict:
-    """Keep/kill decision for one candidate vs the current best keep."""
+    """Keep/kill decision for one candidate vs the current CSV-best score."""
 
     keep: bool
     metric: str
@@ -143,6 +151,15 @@ def exp_to_strategy_id(exp_id: str) -> str:
     if not match:
         raise ValueError(f"not an exp id: {exp_id}")
     return f"s{int(match.group(1)):03d}"
+
+
+def strategy_to_exp_id(strategy_id: str) -> str:
+    """Map ``s019`` → ``exp0019``."""
+
+    text = strategy_id.strip()
+    if text.startswith("s") and text[1:].isdigit():
+        return f"exp{int(text[1:]):04d}"
+    raise ValueError(f"not a strategy id: {strategy_id}")
 
 
 def resolve_exp(root: Path, name: str) -> Path:
@@ -224,14 +241,21 @@ def candidate_cv(root: Path, exp_dir: Path, strategy_id: str) -> float:
 def best_keep_score(
     root: Path, *, kind: str = "cv", exclude: str | None = None
 ) -> ScoreRef:
-    """Best keep score: keep ``metrics.json``, else RESULTS ``ok`` rows, else the floor.
+    """Best score from the CSV (any status), else any scored exp/RESULTS row, else floor.
 
+    Score-first: a ``fail`` row with a valid CV beats a lower ``status=keep``.
     ``exclude`` is an exp id or strategy id so a just-recorded candidate is not
     compared against itself.
     """
 
     floor = FLOOR_CV if kind == "cv" else FLOOR_LB
     skip = {s for s in (exclude, _other_id(exclude)) if s}
+    hist = best_row(read_rows(history_path(root)), kind=kind, exclude=skip)
+    if hist is not None:
+        value = hist.cv if kind == "cv" else hist.lb
+        if value is not None:
+            return ScoreRef(value, f"csv:{hist.strategy_id}", kind)
+
     best: ScoreRef | None = None
     exps = root / "exps"
     if exps.is_dir():
@@ -240,9 +264,6 @@ def best_keep_score(
                 continue
             metrics = _load_json(exp_dir / "metrics.json")
             cfg = _load_json(exp_dir / "config.json")
-            status = str(metrics.get("status") or cfg.get("status") or "").lower()
-            if status != "keep":
-                continue
             value = read_cv(metrics) if kind == "cv" else read_lb(metrics)
             if value is None and kind == "cv":
                 value = read_cv(cfg)
@@ -251,7 +272,7 @@ def best_keep_score(
             if best is None or value > best.value:
                 best = ScoreRef(value, exp_dir.name, kind)
     for row in parse_result_rows(root / "ledger" / "RESULTS.md"):
-        if row.strategy_id in skip or row.status != "ok":
+        if row.strategy_id in skip:
             continue
         value = row.cv if kind == "cv" else row.lb
         if value is None:
@@ -282,6 +303,8 @@ def is_allowed_git_path(rel: str) -> bool:
     rel = rel.replace("\\", "/").lstrip("./")
     if not rel or rel.endswith("/"):
         return False
+    if rel in ALLOWED_LEDGER_FILES:
+        return True
     name = Path(rel).name
     if name in DENIED_NAMES or name.startswith(".env"):
         return False
@@ -409,7 +432,11 @@ def ensure_predictions(
     oof = exp_dir / "oof.csv"
     if sub.exists() and not force:
         if oof.exists() and oof.stat().st_mtime > sub.stat().st_mtime:
-            print(f"stale submission detected (oof {oof.name} newer than submission.csv) — regenerating", flush=True)
+            print(
+                f"stale submission detected (oof {oof.name} newer than submission.csv) "
+                "— regenerating",
+                flush=True,
+            )
             force = True
         else:
             return sub
@@ -614,6 +641,7 @@ def commit_paths_for(exp_id: str) -> list[str]:
         f"exps/{exp_id}/cv.json",
         "ledger/RESULTS.md",
         "ledger/STRATEGIES.md",
+        "ledger/runs_history.csv",
         "EXPERIMENTS.md",
         "LEARNINGS.md",
         "STRATEGY.md",
@@ -761,7 +789,7 @@ def add_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         "--eps",
         type=float,
         default=DEFAULT_EPS,
-        help=f"Minimum lift vs best keep (default {DEFAULT_EPS:g}).",
+        help=f"Minimum lift vs CSV-best CV (default {DEFAULT_EPS:g}).",
     )
     parser.add_argument(
         "--dry-run",

@@ -20,6 +20,7 @@ def _copy_scaffold(src: Path, dest: Path) -> None:
         "ledger/STRATEGIES.md",
         "ledger/RESULTS.md",
         "ledger/CURRENT_STRATEGY.md",
+        "ledger/runs_history.csv",
         "CURSOR.md",
         "LEARNINGS.md",
         "STRATEGY.md",

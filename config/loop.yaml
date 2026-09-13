@@ -12,6 +12,8 @@ loop:
   max_iterations: 10
   target_cv: null
   max_consecutive_failures: 3
+  # Submit (even on status=fail) when CV beats the CSV-best by more than this.
+  submit_eps: 1.0e-5
 
 planner:
   # antigravity | deepseek

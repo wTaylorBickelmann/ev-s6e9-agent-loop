@@ -21,6 +21,7 @@ def test_repo_whitelist_includes_floor_and_denies_dumps(repo_root):
     joined = "\n".join(view.listing)
     assert "LEARNINGS.md" in joined
     assert "STRATEGY.md" in joined
+    assert "ledger/runs_history.csv" in joined
     assert "src/ev_s6e9/features.py" in joined
     assert "src/ev_s6e9/deotte.py" in joined
     assert "exps/exp0010/NOTES.md" in joined

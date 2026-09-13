@@ -1,63 +1,67 @@
 S6E9 instance loop — how the pieces fit
 =======================================
 
-One iteration: planner → ledgers → executor → exps/train → RESULTS.
+One iteration: rewind-from-CSV-best → plan → execute/train → RESULTS+CSV
+→ always commit → maybe submit if best → next iter.
 The planner may read only config/planner_reads.yaml (byte-capped).
 logs/, oof.csv, and competition CSVs are never inlined.
+ledger/ (including runs_history.csv) is never rewound.
 
-+---------------------------+
-| config/planner_reads.yaml |
-| (whitelist only; no logs) |
-+-------------+-------------+
-              |
-              v
-+-------------+-------------+       recoverable fail
-| PLANNER                   |---------------------+
-| Antigravity (`agy`)       |                     |
-+-------------+-------------+                     v
-              |                       +-----------+-----------+
-              | ok                    | FALLBACK              |
-              |                       | DeepSeek (local HTTP) |
-              |                       +-----------+-----------+
-              |                                   |
-              +----------------+------------------+
-                               |
-                               v
-              +----------------+------------------+
-              | LEDGERS                           |
-              | rewrite  CURRENT_STRATEGY.md      |
-              | append   STRATEGIES.md            |
-              +----------------+------------------+
-                               |
-                               v
-              +----------------+------------------+
-              | EXECUTOR                          |
-              | Qwen Code (`qwen -p`, local ~27B) |
-              +----------------+------------------+
-                               |
-                               v
-              +----------------+------------------+
-              | TRAIN                             |
-              | copy keep  exps/exp0010           |
-              |         -> exps/expNNNN           |
-              | scripts/run_exp.py                |
-              | python -m ev_s6e9 train           |
-              +----------------+------------------+
-                               |
-              +----------------+------------------+
-              | RESULTS                           |
-              | append   ledger/RESULTS.md        |
-              | write    ledger/runs/<id>.json    |
-              | write    logs/<id>.log (disk only)|
-              +----------------+------------------+
-                               |
-                               v
-                         next iteration
++-----------------------------------------------+
+| REWIND                                        |
+| best CV row in ledger/runs_history.csv        |
+| git checkout <commit> -- exps/ src/           |
++----------------------+------------------------+
+                       |
+                       v
++----------------------+------------------------+
+| config/planner_reads.yaml (whitelist; no logs)|
++----------------------+------------------------+
+                       |
+                       v
++----------------------+--------+   recoverable fail
+| PLANNER                       |------------------+
+| Antigravity (`agy`)           |                  |
++----------------------+--------+                  v
+                       |                 +---------+-----------+
+                       |                 | FALLBACK            |
+                       |                 | DeepSeek (local HTTP)|
+                       +--------+--------+---------+-----------+
+                                |
+                                v
+                       +--------+------------------+
+                       | LEDGERS                   |
+                       | rewrite  CURRENT_STRATEGY |
+                       | append   STRATEGIES.md    |
+                       +--------+------------------+
+                                |
+                                v
+                       +--------+------------------+
+                       | EXECUTOR + TRAIN          |
+                       | Qwen / scripts/run_exp.py |
+                       +--------+------------------+
+                                |
+                       +--------+------------------+
+                       | RECORD                    |
+                       | RESULTS.md + runs_history |
+                       +--------+------------------+
+                                |
+                       +--------+------------------+
+                       | ALWAYS COMMIT (ok|fail)   |
+                       | loop: RUN id status= cv=  |
+                       +--------+------------------+
+                                |
+                     CV > CSV-best + eps? (fail OK)
+                      /                      \
+                    yes                       no
+                     |                        |
+                     v                        v
+            submit-if-improved          next iteration
 
-`--dry-run` uses mock planner + executor. Same ledger writes; no CLIs/GPU.
+`--dry-run` uses mock planner + executor. Same ledger/CSV writes; no CLIs/GPU.
 
 Packages
 --------
-src/loop/      orchestrator, whitelist assembler, adapters, ledger I/O
+src/loop/      orchestrator, whitelist, adapters, ledger + CSV I/O, gitops
 src/ev_s6e9/   features, Deotte/LightGBM train, predict, submit
 scripts/       run_exp.py (one exp folder), submit_if_improved.py, run-loop.sh
