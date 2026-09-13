@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -406,6 +407,8 @@ def test_stale_submission_regenerated_when_oof_newer(tmp_path: Path, capsys):
     # make the OOF strictly newer than the stale submission
     sub.touch()
     oof.touch()
+    oof_mtime = sub.stat().st_mtime + 10
+    os.utime(oof, (oof_mtime, oof_mtime))
 
     predict_cmds: list[list[str]] = []
 
