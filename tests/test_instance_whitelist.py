@@ -30,6 +30,16 @@ def test_repo_whitelist_includes_floor_and_denies_dumps(repo_root):
     assert "OOF not committed" in notes
 
 
+def test_executor_prompt_teaches_parallel_train(repo_root):
+    """Durable executor note: parallelize train units, cap n_jobs, leave the loop harness."""
+
+    text = (repo_root / "prompts" / "executor.md").read_text(encoding="utf-8")
+    assert "Parallelize independent seeds" in text
+    assert "n_jobs" in text
+    assert "src/loop/" in text
+    assert "tree_method" in text
+
+
 def test_cli_show_whitelist_repo(repo_root, capsys):
     assert main(["show-whitelist", "--root", str(repo_root)]) == 0
     out = capsys.readouterr().out
