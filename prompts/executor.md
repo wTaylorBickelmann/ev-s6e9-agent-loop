@@ -29,7 +29,7 @@ The last keep is `exps/exp0010/` (Deotte `--freq --te`, CV 0.94552 / LB 0.94561)
 When you edit `src/ev_s6e9/` train / FE / submit paths:
 
 - Parallelize independent seeds / variants / folds (process pool) for wall-clock speed.
-- Cap per-worker `n_jobs` (and CatBoost `thread_count` / LightGBM `n_jobs` if touched) so workers × threads ≈ CPU count. A single worker keeps `n_jobs=-1`.
+- Keep `n_jobs=-1` (and CatBoost / LightGBM thread defaults uncapped the same way). Do not cap per-worker threads; oversubscription is OK.
 - Never change seeds, hyperparams, `tree_method`, or `device` just for speed. Keep `hist` + CPU.
 - Do not rewrite the AI loop harness (`src/loop/`) for speed.
 

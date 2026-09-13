@@ -31,11 +31,11 @@ def test_repo_whitelist_includes_floor_and_denies_dumps(repo_root):
 
 
 def test_executor_prompt_teaches_parallel_train(repo_root):
-    """Durable executor note: parallelize train units, cap n_jobs, leave the loop harness."""
+    """Durable executor note: parallelize train units, keep n_jobs=-1, leave the loop harness."""
 
     text = (repo_root / "prompts" / "executor.md").read_text(encoding="utf-8")
     assert "Parallelize independent seeds" in text
-    assert "n_jobs" in text
+    assert "n_jobs=-1" in text
     assert "src/loop/" in text
     assert "tree_method" in text
 
