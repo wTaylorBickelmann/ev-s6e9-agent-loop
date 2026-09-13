@@ -2,13 +2,57 @@
 
 from __future__ import annotations
 
+import json
 import os
+import re
 from pathlib import Path
 
 from loop.ledger import parse_result_rows
 from loop.models import Plan, RunResult
 from loop.parse import parse_result_line
 from loop.shell import run_cmd, timeout_seconds
+
+_EXP_ID = re.compile(r"s(\d+)", re.I)
+
+
+def _exp_metrics(loop_root: Path, strategy_id: str) -> RunResult | None:
+    """Recover a successful run from `exps/expNNNN/metrics.json` (status `scored`).
+
+    The executor can finish training (writing metrics.json) but then time out before
+    emitting its RESULT line. That is a completed, scoreable run — not a failure.
+    Returns an `ok` RunResult with the real CV, or None if no scored metrics exist.
+    """
+
+    m = _EXP_ID.search(strategy_id)
+    if not m:
+        return None
+    exp_dir = loop_root / "exps" / f"exp{int(m.group(1)):04d}"
+    metrics_path = exp_dir / "metrics.json"
+    if not metrics_path.is_file():
+        return None
+    try:
+        metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if metrics.get("status") != "scored":
+        return None
+    cv = metrics.get("cv_mean")
+    if cv is None:
+        return None
+    try:
+        cv = float(cv)
+    except (TypeError, ValueError):
+        return None
+    return RunResult(
+        strategy_id=strategy_id,
+        status="ok",
+        cv=cv,
+        lb=None,
+        notes="recovered from exps/exp"
+        + exp_dir.name[3:]
+        + "/metrics.json (executor timed out after training succeeded)",
+    )
+
 
 
 class ExecutorQwenCode:
@@ -80,6 +124,14 @@ class ExecutorQwenCode:
                 match.phase = plan.phase
                 match.source = self.name
                 return match
+            # The executor may finish training (writing metrics.json) but then time
+            # out / exit non-zero before emitting its RESULT line. That is a completed,
+            # scoreable run — recover the real CV instead of recording a bogus fail.
+            recovered = _exp_metrics(self.loop_root, plan.strategy_id)
+            if recovered is not None:
+                recovered.phase = plan.phase
+                recovered.source = self.name
+                return recovered
         if parsed:
             parsed.phase = plan.phase
             parsed.source = self.name
