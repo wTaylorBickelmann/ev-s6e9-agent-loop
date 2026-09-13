@@ -335,3 +335,32 @@ def test_cli_submit_if_improved_dry_run(tmp_path: Path, capsys):
     _write_exp(tmp_path, "exp0019", cv=0.94, status="scored")
     assert loop_main(["submit-if-improved", "exp0019", "--dry-run", "--root", str(tmp_path)]) == 1
     assert "kill" in capsys.readouterr().out
+
+
+def test_stale_submission_regenerated_when_oof_newer(tmp_path: Path, capsys):
+    """A stale submission.csv (older than the strategy's OOF) must be regenerated,
+    not reused. Regression for the 0.88273-on-LB incident where a submit reused a
+    submission file left over from an earlier strategy."""
+    _write_exp(tmp_path, "exp0019", cv=0.94610, status="scored")
+    (tmp_path / "outputs").mkdir(exist_ok=True)
+    sub = tmp_path / "outputs" / "submission.csv"
+    sub.write_text("id,Will_Buy_EV\n1,0.5\n")
+    oof = tmp_path / "exps" / "exp0019" / "oof.csv"
+    oof.write_text("id,Will_Buy_EV\n1,0.5\n")
+    # make the OOF strictly newer than the stale submission
+    sub.touch(); old = sub.stat().st_mtime
+    oof.touch(); oof.stat()  # oof now has a later mtime than sub
+
+    predict_cmds: list[list[str]] = []
+
+    def fake_run(argv, **_k):
+        if "ev_s6e9" in argv and "predict" in argv:
+            predict_cmds.append(list(argv))
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    from loop.submit_if_improved import ensure_predictions
+    out = ensure_predictions(tmp_path, tmp_path / "exps" / "exp0019",
+                             skip=False, force=False, dry_run=False, run=fake_run)
+    assert predict_cmds, "predict should have been re-run because the OOF is newer than submission.csv"
+    assert out == sub

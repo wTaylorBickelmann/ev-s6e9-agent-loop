@@ -403,8 +403,16 @@ def ensure_predictions(
     sub = root / "outputs" / "submission.csv"
     if skip and not sub.exists():
         raise FileNotFoundError(f"{sub} missing; run predict or omit --skip-predict")
+    # Guard against stale submissions: if the strategy's OOF (model output) is NEWER
+    # than the existing submission.csv, the submission is stale and MUST be regenerated.
+    # (Without this, a submit after training a new strategy reuses an old submission file.)
+    oof = exp_dir / "oof.csv"
     if sub.exists() and not force:
-        return sub
+        if oof.exists() and oof.stat().st_mtime > sub.stat().st_mtime:
+            print(f"stale submission detected (oof {oof.name} newer than submission.csv) — regenerating", flush=True)
+            force = True
+        else:
+            return sub
     cfg = _load_json(exp_dir / "config.json")
     args = list(cfg.get("predict_args") or [])
     if not args and cfg.get("strategy"):

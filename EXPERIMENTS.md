@@ -209,3 +209,18 @@ Template:
 - LB: 0.88273
 - Takeaway: exp0041 submitted CV=0.94575 LB=0.88273
 
+### 2026-09-13 — Deotte XGB 3-model blend (n_estimators=3000 lr=0.05 max_depth=6), 5-fold
+- CV: 0.94567 ± 0.00061
+- LB: —
+- Takeaway: s044 multi-seed averaged TE (3 inner seeds 42/43/44) on s041 feature set
+
+### 2026-09-13 — Deotte XGB 3-model blend (n_estimators=3000 lr=0.05 max_depth=6), 5-fold
+- CV: 0.94567 ± 0.00061
+- LB: —
+- Takeaway: s041 RETRAIN triple-TE commute+income m2+m5+m20
+
+### 2026-09-13 — exp0041 submit
+- CV: 0.94575
+- LB: 0.94580
+- Takeaway: exp0041 submitted CV=0.94575 LB=0.94580
+

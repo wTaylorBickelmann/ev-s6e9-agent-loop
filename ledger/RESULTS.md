@@ -37,7 +37,7 @@ Seeded compactly from reports/index.md + EXPERIMENTS.md @ a4c75ae. Floor = s010 
 | s038 | ok | 0.94567 | — | exp0038 10-seed (42-51) Deotte blend on dual-TE (m=5+m=20) + weight search; CV 0.94567 ± 0.00063 vs floor 0.94566 (marginal +0.00001, within noise) |
 | s039 | ok | 0.94567 | — | exp0039 3-model OOF rank-blend (XGB exp0038 + LGBM exp0026 + CatBoost exp0029) w=0.897/0.034/0.069; CV 0.94567 ± 0.00063 = floor (kill: weight search collapsed onto XGB, no lift over prob-blend control 0.94567) |
 | s040 | ok | 0.94569 | — | exp0040 triple-smoothing TE income (m=2+m=5+m=20) 10-seed blend + weight search; CV 0.94569 ± 0.00062 vs floor 0.94567 (marginal +0.00002, within noise) |
-| s041 | ok | 0.94575 | 0.88273 | recovered from exps/exp0041/metrics.json (executor timed out after training succeeded) |
+| s041 | ok | 0.94575 | 0.9458 | recovered from exps/exp0041/metrics.json (executor timed out after training succeeded) |
 | s042 | ok | 0.94543 | — | exp0042 LGBM on full s041 6-TE features (income m=20/5/2 + commute m=20/5/2); CV 0.94543 ± 0.00064; +0.00014 vs s026 single-TE; gap to s041 XGB = 0.00032 (below 0.94555 stack threshold) |
 | s043 | fail | 0.94566 | — | exp0043 XGB max_depth=8 on s041 feature set; CV 0.94566 ± 0.00064 < floor 0.94575 (kill: depth 6 already optimal for this feature count) |
 | s044 | fail | — | — | qwen exit 1: Loop detection halted the run (consecutive_identical_tool_calls: the model repeated the same tool call with identical arguments). This is an always-on guard and cannot be disabled via `model.skipLoopD |

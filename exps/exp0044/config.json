@@ -21,5 +21,8 @@
   ],
   "submit_message": "s044 multi-seed averaged TE encoding",
   "folds": 5,
-  "seed": 42
+  "seed": 42,
+  "cv_mean": 0.9456721089621997,
+  "cv_std": 0.0006135159676563233,
+  "cv": "0.94567 \u00b1 0.00061"
 }
