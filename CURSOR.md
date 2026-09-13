@@ -60,6 +60,11 @@ Do not paste fold arrays or traces into them.
   (`FeatureBuilder`, model factories). Train / predict / `scripts/run_exp.py` call those APIs.
 - Type hints on public functions. Docstrings only when they add something.
 - No god-files. Do not move logic into notebooks.
+- Speed: parallelize independent seed / variant / fold units; cap per-worker
+  `n_jobs` / CatBoost `thread_count` so workers × threads ≈ CPU count. Never
+  change seeds, params, `tree_method`, or `device` just for speed. Do not
+  rewrite `src/loop/` for wall-clock; only train / FE / submit paths.
+  Knob: `--max-workers` or `EV_S6E9_TRAIN_WORKERS`.
 
 ## Experiments (Deotte / BirdCLEF factory)
 

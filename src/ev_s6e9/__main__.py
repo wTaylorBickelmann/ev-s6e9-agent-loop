@@ -35,6 +35,12 @@ def _parser() -> argparse.ArgumentParser:
     t.add_argument("--weight-search", action="store_true", help="grid-search non-equal blend weights for m1/m2/m3")
     t.add_argument("--override", action="append", default=[], metavar="KEY=VALUE",
                    help="model param override (repeatable), e.g. --override max_depth=8")
+    t.add_argument(
+        "--max-workers",
+        type=int,
+        default=None,
+        help="process workers for independent seed/variant/fold jobs (env EV_S6E9_TRAIN_WORKERS)",
+    )
 
     pr = sub.add_parser("predict", help="average fold models → outputs/submission.csv")
     pr.add_argument("--strategy", choices=["lgbm", "deotte"], default=None)
@@ -160,6 +166,7 @@ def main(argv: list[str] | None = None) -> None:
                 freq=args.freq,
                 te=args.te,
                 weight_search=args.weight_search,
+                max_workers=args.max_workers,
             )
         elif args.strategy == "catboost":
             from ev_s6e9.data import load_test
@@ -178,6 +185,7 @@ def main(argv: list[str] | None = None) -> None:
                 freq=args.freq,
                 te=args.te,
                 test=test_df,
+                max_workers=args.max_workers,
             )
         elif args.strategy == "hgb":
             from ev_s6e9.data import load_test
@@ -196,6 +204,7 @@ def main(argv: list[str] | None = None) -> None:
                 freq=args.freq,
                 te=args.te,
                 test=test_df,
+                max_workers=args.max_workers,
             )
         else:
             from ev_s6e9.data import load_test
@@ -214,6 +223,7 @@ def main(argv: list[str] | None = None) -> None:
                 freq=args.freq,
                 te=args.te,
                 test=test_df,
+                max_workers=args.max_workers,
             )
         eda(df)
         return

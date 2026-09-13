@@ -1,4 +1,9 @@
-"""Deotte Fable 5.1: 3-model XGB blend (baseline, base_margin, recipe_feature)."""
+"""Deotte Fable 5.1: 3-model XGB blend (baseline, base_margin, recipe_feature).
+
+Independent `(seed, variant)` CV units run in a process pool when more than one
+worker is requested. FeatureBuilder is fit once in the parent and passed through;
+`tree_method=hist` / `device=cpu` stay at XGB defaults.
+"""
 
 from __future__ import annotations
 
@@ -16,8 +21,13 @@ from ev_s6e9.experiments import append_chunk, format_chunk
 from ev_s6e9.features import FeatureBuilder, TE_COL, encode_target, te_apply, te_fit, te_oof, te_oof_avg
 from ev_s6e9.metrics import auc, fmt_cv, mean_std
 from ev_s6e9.model import XGB_DEFAULTS, make_xgb_model, short_xgb_params
+from ev_s6e9.parallel import cap_model_threads, map_jobs, resolve_max_workers
 from ev_s6e9.paths import CV_JSON, OOF_CSV, OUTPUTS, ROOT
 from ev_s6e9.schema import ID_COL, TARGET
+
+# Parent-fitted frame + FeatureBuilder, bound into spawn workers (not refit).
+_POOL_TRAIN: pd.DataFrame | None = None
+_POOL_FB: FeatureBuilder | None = None
 
 STRATEGY = "deotte"
 VARIANTS = ("m1", "m2", "m3")
@@ -168,6 +178,69 @@ def _fit_fold(
     return m, p
 
 
+def _init_deotte_worker(train: pd.DataFrame, fb: FeatureBuilder) -> None:
+    """Bind the parent-fitted frame and FeatureBuilder into this worker process."""
+
+    global _POOL_TRAIN, _POOL_FB
+    _POOL_TRAIN = train
+    _POOL_FB = fb
+
+
+def _seed_variant_worker(job: tuple) -> tuple[int, str, VariantCv]:
+    """One independent `(model_seed, variant)` CV using the parent-fitted FeatureBuilder."""
+
+    variant, folds, fold_seed, model_seed, overrides = job
+    vc = run_variant_cv(
+        _POOL_TRAIN,
+        _POOL_FB,
+        DeotteVariant(variant),
+        folds=folds,
+        seed=fold_seed,
+        model_seed=model_seed,
+        model_overrides=overrides,
+    )
+    return model_seed, variant, vc
+
+
+def _collect_variant_jobs(
+    train: pd.DataFrame,
+    fb: FeatureBuilder,
+    *,
+    folds: int,
+    fold_seed: int,
+    seeds: list[int],
+    overrides: dict | None,
+    max_workers: int | None,
+) -> dict[tuple[int, str], VariantCv]:
+    """Run each `(seed, variant)` unit sequentially or in a spawn pool. Keyed for stable assembly."""
+
+    pairs = [(s, v) for s in seeds for v in DeotteVariant]
+    n_workers = resolve_max_workers(len(pairs), max_workers)
+    worker_ov = cap_model_threads(overrides, n_workers)
+    if n_workers <= 1:
+        return {
+            (s, v.value): run_variant_cv(
+                train,
+                fb,
+                v,
+                folds=folds,
+                seed=fold_seed,
+                model_seed=s,
+                model_overrides=worker_ov,
+            )
+            for s, v in pairs
+        }
+    jobs = [(v.value, folds, fold_seed, s, worker_ov) for s, v in pairs]
+    packed = map_jobs(
+        _seed_variant_worker,
+        jobs,
+        n_workers,
+        initializer=_init_deotte_worker,
+        initargs=(train, fb),
+    )
+    return {(s, name): vc for s, name, vc in packed}
+
+
 def run_variant_cv(
     df: pd.DataFrame,
     fb: FeatureBuilder,
@@ -218,21 +291,24 @@ def run_cv(
     model_overrides: dict | None = None,
     freq: bool = False,
     te: bool = False,
+    max_workers: int | None = None,
 ) -> DeotteCvResult:
-    """Fit FeatureBuilder, run m1/m2/m3, return the equal-weight blend."""
+    """Fit FeatureBuilder once, run m1/m2/m3 (optionally in parallel), return the equal-weight blend."""
     fb = FeatureBuilder(freq=freq, te=te).fit(train, test)
-    variants: dict[str, VariantCv] = {}
-    oofs = []
-    for v in DeotteVariant:
-        vc = run_variant_cv(train, fb, v, folds=folds, seed=seed, model_overrides=model_overrides)
-        variants[v.value] = vc
-        oofs.append(vc.oof)
-    blend_oof = np.mean(oofs, axis=0)
+    by_key = _collect_variant_jobs(
+        train,
+        fb,
+        folds=folds,
+        fold_seed=seed,
+        seeds=[seed],
+        overrides=model_overrides,
+        max_workers=max_workers,
+    )
+    variants = {v.value: by_key[(seed, v.value)] for v in DeotteVariant}
+    blend_oof = np.mean([variants[v.value].oof for v in DeotteVariant], axis=0)
     y = encode_target(train[TARGET]).to_numpy()
     skf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed)
-    blend_scores = []
-    for tr, va in skf.split(train, y):
-        blend_scores.append(auc(y[va], blend_oof[va]))
+    blend_scores = [auc(y[va], blend_oof[va]) for _, va in skf.split(train, y)]
     mean, std = mean_std(blend_scores)
     params = {**XGB_DEFAULTS, **(model_overrides or {})}
     return DeotteCvResult(blend_oof, blend_scores, mean, std, variants, fb, params)
@@ -289,11 +365,13 @@ def run_cv_multi_seed(
     freq: bool = False,
     te: bool = False,
     weight_search: bool = False,
+    max_workers: int | None = None,
 ) -> DeotteCvResult:
     """Run Deotte 3-variant CV for each seed; average OOFs; evaluate on fixed folds.
 
     When `weight_search` is True, grid-searches non-equal blend weights (w1, w2, w3)
     on the per-variant OOFs (averaged across seeds) to maximise CV AUC.
+    Independent `(seed, variant)` units may run in a process pool.
     """
     if seeds is None:
         seeds = [fold_seed]
@@ -301,20 +379,22 @@ def run_cv_multi_seed(
     y = encode_target(train[TARGET]).to_numpy()
     skf = StratifiedKFold(n_splits=folds, shuffle=True, random_state=fold_seed)
 
-    # Collect per-variant OOF sums across seeds
+    by_key = _collect_variant_jobs(
+        train,
+        fb,
+        folds=folds,
+        fold_seed=fold_seed,
+        seeds=list(seeds),
+        overrides=model_overrides,
+        max_workers=max_workers,
+    )
     variant_oof_sums: dict[str, np.ndarray] = {v.value: np.zeros(len(y), dtype=float) for v in DeotteVariant}
     all_variants: dict[str, dict[str, VariantCv]] = {}
     for s in seeds:
-        variants: dict[str, VariantCv] = {}
-        for v in DeotteVariant:
-            vc = run_variant_cv(
-                train, fb, v,
-                folds=folds, seed=fold_seed, model_seed=s,
-                model_overrides=model_overrides,
-            )
-            variants[v.value] = vc
-            variant_oof_sums[v.value] += vc.oof
+        variants = {v.value: by_key[(s, v.value)] for v in DeotteVariant}
         all_variants[f"seed_{s}"] = variants
+        for v in DeotteVariant:
+            variant_oof_sums[v.value] += variants[v.value].oof
 
     # Average per-variant OOFs across seeds
     n_seeds = len(seeds)
@@ -401,16 +481,20 @@ def train(
     freq: bool = False,
     te: bool = False,
     weight_search: bool = False,
+    max_workers: int | None = None,
 ) -> DeotteCvResult:
     """Run Deotte CV, persist artifacts, optionally append EXPERIMENTS.md."""
     if seeds:
         cv = run_cv_multi_seed(
             df, test, folds=folds, fold_seed=seed, seeds=seeds,
             model_overrides=model_overrides, freq=freq, te=te,
-            weight_search=weight_search,
+            weight_search=weight_search, max_workers=max_workers,
         )
     else:
-        cv = run_cv(df, test, folds=folds, seed=seed, model_overrides=model_overrides, freq=freq, te=te)
+        cv = run_cv(
+            df, test, folds=folds, seed=seed, model_overrides=model_overrides,
+            freq=freq, te=te, max_workers=max_workers,
+        )
     save_run(df, cv, out=out)
     if log:
         log_experiment(cv, folds=folds, note=note, path=experiments_path)
