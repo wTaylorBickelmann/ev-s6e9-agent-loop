@@ -23,3 +23,5 @@ Template:
 - 2026-09-12 exp0016: deotte-orig-te → 0.94553 vs 0.94552 — kill
 - 2026-09-12 exp0014/17/18: Cursor-Fable planner timeouts/exits — do not use that planner path; this instance uses Antigravity→Qwen
 - Executor timeouts (3600s) on early TE/m4 attempts: keep wall-clock in CURRENT_STRATEGY; write traces only to `logs/`
+- Rewind restores `exps/` + `src/ev_s6e9/` to CSV-best every iteration; leftover package edits (e.g. `--orig` / `load_original()`) do not survive into the next plan. Implement library changes in the same execute turn as train, or use existing CLI/config.
+- Do not invent train.csv columns; `Years_of_Driving_Experience` is not in `schema.py` / `TRAIN_COLS`.

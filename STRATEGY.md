@@ -16,9 +16,10 @@ Do not expect `logs/` or `reports/kills/` in context.
 - Do not peek at test labels / use test target.
 - Do not rewrite old `reports/index.md` rows or old `EXPERIMENTS.md` chunks.
 - Do not “fix” a bad score by tightening early stopping only to inflate OOF without a real idea.
+- Do not plan/execute a strategy that depends on leftover `src/ev_s6e9/` edits from a **previous** iteration. Rewind restores that tree to CSV-best every turn. Prefer `exps/expNNNN/config.json` + existing CLI flags. If a library change is required, it must land in the **same** execute turn as train (and be commitable). Do not invent columns (`Years_of_Driving_Experience` is not in `schema.py`).
 
 ## One-change rule
-Each iteration: **exactly one** hypothesis. Copy last accepted exp → new folder → edit the copy only (plus minimal shared lib if a new strategy flag is required).
+Each iteration: **exactly one** hypothesis. Copy last accepted exp → new folder → edit the copy only (plus minimal shared lib **in this same execute turn** if a new strategy flag is required — rewind will wipe uncommitted `src/ev_s6e9/` leftovers before the next plan).
 
 ## Queue (human edits this; agent consumes top unchecked)
 

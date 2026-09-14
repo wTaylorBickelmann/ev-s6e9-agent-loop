@@ -15,6 +15,8 @@ from ev_s6e9.schema import (
     TEST_COLS,
     TRAIN_COLS,
     check_exact,
+    require_raw_cols,
+    unknown_raw_cols,
 )
 
 
@@ -49,6 +51,15 @@ def test_test_and_sub_headers():
 def test_check_exact_rejects_invented_names():
     with pytest.raises(ValueError, match="unexpected|must be"):
         check_exact(["id", "Age", "Fake_Col"], ["id", "Age"], "train")
+
+
+def test_require_raw_cols_rejects_invented_names():
+    assert unknown_raw_cols(["Age", "Years_of_Driving_Experience"]) == [
+        "Years_of_Driving_Experience"
+    ]
+    require_raw_cols(["Age", "Annual_Income_USD"])
+    with pytest.raises(ValueError, match="Years_of_Driving_Experience"):
+        require_raw_cols(["Age", "Years_of_Driving_Experience"])
 
 
 def test_cli_has_download_train_predict_submit():

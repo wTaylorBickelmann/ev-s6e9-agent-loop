@@ -22,6 +22,8 @@ def test_repo_whitelist_includes_floor_and_denies_dumps(repo_root):
     assert "LEARNINGS.md" in joined
     assert "STRATEGY.md" in joined
     assert "ledger/runs_history.csv" in joined
+    assert "src/ev_s6e9/schema.py" in joined
+    assert "src/ev_s6e9/__main__.py" in joined
     assert "src/ev_s6e9/features.py" in joined
     assert "src/ev_s6e9/deotte.py" in joined
     assert "exps/exp0010/NOTES.md" in joined
@@ -38,6 +40,18 @@ def test_executor_prompt_teaches_parallel_train(repo_root):
     assert "n_jobs=-1" in text
     assert "src/loop/" in text
     assert "tree_method" in text
+
+
+def test_executor_prompt_forbids_sticky_src_edits(repo_root):
+    """Rewind resets src/ev_s6e9; strategies must not depend on leftover package edits."""
+
+    text = (repo_root / "prompts" / "executor.md").read_text(encoding="utf-8")
+    assert "leftover edits" in text
+    assert "execute turn before train" in text
+    assert "Years_of_Driving_Experience" in text
+    planner = (repo_root / "prompts" / "planner.md").read_text(encoding="utf-8")
+    assert "post-rewind" in planner
+    assert "load_original()" in planner
 
 
 def test_cli_show_whitelist_repo(repo_root, capsys):

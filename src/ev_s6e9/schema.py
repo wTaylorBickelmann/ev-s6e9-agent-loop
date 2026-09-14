@@ -59,6 +59,22 @@ def missing_cols(cols: list[str], have) -> list[str]:
     return [c for c in cols if c not in have]
 
 
+def unknown_raw_cols(names) -> list[str]:
+    """Return names that are not train.csv columns (id / features / target)."""
+    known = set(TRAIN_COLS)
+    return [n for n in names if n not in known]
+
+
+def require_raw_cols(names, *, context: str = "features") -> None:
+    """Raise if any name is not a train.csv column. Do not invent fields."""
+    bad = unknown_raw_cols(names)
+    if bad:
+        raise ValueError(
+            f"{context} unknown columns {bad}; train.csv has {list(TRAIN_COLS)}. "
+            "Do not invent fields (e.g. Years_of_Driving_Experience)."
+        )
+
+
 def check_cols(have, cols: list[str], name: str) -> None:
     """Raise if any required name in `cols` is missing from `have`."""
 
