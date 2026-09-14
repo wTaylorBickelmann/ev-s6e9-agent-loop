@@ -64,6 +64,23 @@ Do not paste fold arrays or traces into them.
   (do not cap per-worker threads). Do not switch `tree_method` / `device`
   or seeds / params for speed. Do not rewrite `src/loop/` for wall-clock.
 
+## Rewind-safe `src/ev_s6e9/` (forbidden pattern)
+
+Each iteration restores `exps/` + `src/ev_s6e9/` to the CSV-best CV commit
+**before** plan/execute. `src/loop/`, prompts, config, and ledgers stay put.
+
+- Prefer new work via `exps/expNNNN/config.json` + existing CLI flags
+  (`scripts/run_exp.py` / `python -m ev_s6e9 train …`).
+- **Do not** rely on leftover edits in `src/ev_s6e9/` from a prior iteration
+  (`--orig`, `load_original()`, extra columns, etc.). They will not be there.
+- If a strategy truly needs library code changes: implement them **in the same
+  execute turn before train**, keep them minimal/modular, and leave them on
+  allow-listed paths so the run commit (ok or fail) records them.
+- Prefer experiment-only helpers under `exps/<id>/` or thin config-callable
+  wrappers rather than growing core APIs for one-off ideas — when practical.
+- Never invent columns. `Years_of_Driving_Experience` is not in `schema.py`.
+  Check `TRAIN_COLS` / the train header only.
+
 ## Experiments (Deotte / BirdCLEF factory)
 
 - CV is ground truth. Record LB only after a real submit.

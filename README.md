@@ -176,6 +176,8 @@ python -m loop show-whitelist
 `competition.root` is **this repo** (`.` / `COMPETITION_ROOT=.`). Each iteration
 rewinds `exps/`+`src/ev_s6e9/` to the CSV-best CV commit (not `src/loop/`), the executor trains via
 `scripts/run_exp.py`, then the loop appends RESULTS + `runs_history.csv` and commits.
+Do **not** depend on leftover `src/ev_s6e9/` edits across iterations — rewind resets that tree;
+implement library changes in the same execute turn as train, or stick to existing CLI / `config.json`.
 
 Suggested memory split: do **not** keep both DeepSeek (~120GB Q3) and 27B Qwen resident
 at once. They run in sequence (plan, then execute). Bounce backends **without** restarting

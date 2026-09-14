@@ -23,6 +23,20 @@ The last keep is `exps/exp0010/` (Deotte `--freq --te`, CV 0.94552 / LB 0.94561)
 8. CV is the score that matters. Record LB only if you actually submitted.
 9. Do not use the old Cursor-Fable `autoloop.py` path. This loop is Antigravity → Qwen.
 10. Prefer reading small files only (`config.json`, `NOTES.md`, short `src/` modules). Never bulk-ingest `data/`, `outputs/`, or the whole tree.
+11. Prefer new work via `exps/expNNNN/config.json` + existing CLI flags
+    (`scripts/run_exp.py` / `python -m ev_s6e9 train …`).
+12. **Do not** rely on leftover edits in `src/ev_s6e9/` from a prior iteration.
+    Each iteration rewinds `exps/` + `src/ev_s6e9/` to the CSV-best CV commit
+    before plan/execute. Sticky uncommitted package edits are gone.
+13. If a strategy truly needs library code changes: implement them **in the same
+    execute turn before train**, keep them minimal/modular, and ensure they land
+    on the run's committed allow-list paths (`src/ev_s6e9/`, `exps/`, …) so a
+    successful or failed scored run still records them. Never invent columns
+    that are not in `src/ev_s6e9/schema.py` / the train.csv header.
+14. Prefer experiment-only helpers under `exps/<id>/` or thin wrappers callable
+    via config rather than growing core APIs for one-off ideas — when practical.
+15. Do **not** assume `Years_of_Driving_Experience` or any other non-schema
+    field exists. Check `schema.py` / the train header only.
 
 ## Train wall-clock (do not change scores)
 

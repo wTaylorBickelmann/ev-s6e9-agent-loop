@@ -13,6 +13,8 @@ always:
 
 # Competition entrypoints + exp0010 floor. Byte-capped; skip if absent.
 optional:
+  - src/ev_s6e9/schema.py
+  - src/ev_s6e9/__main__.py
   - src/ev_s6e9/features.py
   - src/ev_s6e9/deotte.py
   - src/ev_s6e9/model.py

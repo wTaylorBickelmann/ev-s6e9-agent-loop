@@ -15,6 +15,12 @@ Phase coverage: {phase_coverage}
 4. Keep the new strategy short and executable. No essays.
 5. CV is ground truth. Do not chase public LB at the expense of CV.
 6. Prefer the next Deotte phase that is under-explored: EDA → baseline → FE → stack.
+7. Plan only against the **post-rewind** tree: current CSV-best `src/ev_s6e9/`
+   plus documented CLI flags (`python -m ev_s6e9 train`, inlined `schema.py` /
+   `__main__.py`, `STRATEGIES.md`). Do **not** require leftover APIs from a
+   previous failed edit (`--orig`, `load_original()`, invented columns).
+8. Do not invent train.csv fields. Allowed input names are in `schema.py`
+   (`TRAIN_COLS`). `Years_of_Driving_Experience` is not one of them.
 
 Allowed files (already inlined; do not re-read):
 {whitelist_listing}

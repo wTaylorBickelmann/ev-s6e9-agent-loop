@@ -74,6 +74,17 @@ def main() -> int:
     if cfg.get("seed") is not None and "--seed" not in train_args:
         train_args += ["--seed", str(int(cfg["seed"]))]
 
+    sys.path.insert(0, str(ROOT / "src"))
+    from loop.train_guard import TrainConfigError, validate_exp_config
+
+    cfg_for_guard = dict(cfg)
+    cfg_for_guard["train_args"] = train_args
+    try:
+        validate_exp_config(cfg_for_guard)
+    except TrainConfigError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+
     cmd = [py(), "-m", "ev_s6e9", "train", *train_args]
     print(" ".join(cmd), flush=True)
     env = os.environ.copy()

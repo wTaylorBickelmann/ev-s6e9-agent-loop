@@ -7,7 +7,7 @@ import pandas as pd
 from scipy.stats import norm
 from sklearn.model_selection import StratifiedKFold
 
-from ev_s6e9.schema import CAT_COLS, FEATURE_COLS, ID_COL, NUM_COLS, TARGET, check_cols
+from ev_s6e9.schema import CAT_COLS, FEATURE_COLS, ID_COL, NUM_COLS, TARGET, check_cols, require_raw_cols
 
 HELPER_COLS = ["worry_score", "chargers_total", "income_x_subsidy", "concern_x_subsidy", "no_home_charge_x_high_anxiety"]
 RECIPE_COL = "recipe_score"
@@ -111,6 +111,7 @@ class FeatureBuilder:
     def fit(self, train: pd.DataFrame, test: pd.DataFrame | None = None) -> FeatureBuilder:
         """Learn shared category codes (and optional freq maps) from train+test."""
 
+        require_raw_cols([*CAT_COLS, *FREQ_COLS], context="FeatureBuilder")
         frames = [train]
         if test is not None:
             frames.append(test)
